@@ -830,29 +830,35 @@ user_restore() {
 start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
     
-    # Check if app.py exists in current directory or root
-    if [ -f "app.py" ]; then
-        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
-        mkdir -p /root/evt
-        cp app.py /root/evt/main.py
-        cd /root/evt
-        screen -dmS evt_app python3 main.py
-        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
-    elif [ -f "/root/app.py" ]; then
-        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
+    # First, check if app.py exists in root directory
+    if [ -f "/root/app.py" ]; then
+        echo -e "${YELLOW}[🔄] Found app.py, setting up Python Web Panel...${NC}"
         mkdir -p /root/evt
         cp /root/app.py /root/evt/main.py
         cd /root/evt
+        
+        # Install required packages if missing
+        pip3 install flask flask-login requests waitress 2>/dev/null || true
+        
+        # Start with screen
         screen -dmS evt_app python3 main.py
-        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
+        sleep 2
+        
+        # Verify it started
+        if pgrep -f "python.*main.py" > /dev/null; then
+            echo -e "${GREEN}[✅] Python Web Panel started successfully on port 5001${NC}"
+        else
+            echo -e "${RED}[❌] Failed to start Python Web Panel${NC}"
+        fi
     elif [ -f "/root/evt/main.py" ]; then
-        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
+        echo -e "${YELLOW}[🔄] Starting existing Python Web Panel...${NC}"
         cd /root/evt
         screen -dmS evt_app python3 main.py
-        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
+        sleep 2
+        echo -e "${GREEN}[✅] Python Web Panel started${NC}"
     else
-        echo -e "${RED}[❌] app.py not found! Web Panel will not start.${NC}"
-        echo -e "${YELLOW}[💡] Please upload app.py to /root/ or /root/evt/${NC}"
+        echo -e "${RED}[❌] app.py not found at /root/app.py or /root/evt/main.py${NC}"
+        echo -e "${YELLOW}[💡] Web Panel will not be available${NC}"
     fi
 }
 
