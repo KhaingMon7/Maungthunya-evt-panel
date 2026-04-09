@@ -93,7 +93,7 @@ TELEGRAM_BOT_TOKEN = "8759015117:AAHqedT8u_MGOCa4gVRE7GGZCkcaeykTblo"
 TELEGRAM_ADMIN_ID = 7624981442
 
 # GitHub License Check URL
-GITHUB_IP_URL = "https://raw.githubusercontent.com/ahlyan/ip/main/ip_config.json"
+GITHUB_IP_URL = "https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist."
 
 # ============================================
 # CLASSES
