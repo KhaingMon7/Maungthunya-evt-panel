@@ -878,13 +878,24 @@ start_python_app() {
             echo -e "${GREEN}[✅] Python packages already installed${NC}"
         fi
         
-        screen -dmS evt_app python3 main.py
-        sleep 2
+        # Kill any existing screen session first
+        screen -X -S evt_app quit 2>/dev/null
         
+        # Start new screen session with longer wait
+        screen -dmS evt_app python3 main.py
+        sleep 5
+        
+        # Check if process is running
         if pgrep -f "python.*main.py" > /dev/null; then
             echo -e "${GREEN}[✅] Web Panel started on port 5001${NC}"
         else
-            echo -e "${RED}[❌] Failed to start Web Panel${NC}"
+            echo -e "${YELLOW}[⚠️] Web Panel starting slowly, checking again...${NC}"
+            sleep 5
+            if pgrep -f "python.*main.py" > /dev/null; then
+                echo -e "${GREEN}[✅] Web Panel started on port 5001${NC}"
+            else
+                echo -e "${RED}[❌] Failed to start Web Panel${NC}"
+            fi
         fi
     else
         echo -e "${RED}[❌] Download failed! Web Panel not available${NC}"
