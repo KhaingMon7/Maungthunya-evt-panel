@@ -5,6 +5,16 @@
 # IP already verified by Cloudflare Worker
 # ============================================
 
+# ===== CHECK AND INSTALL DEPENDENCIES ONCE =====
+if [ ! -f "/root/.evt_deps_installed" ]; then
+    echo -e "${YELLOW}[📦] Installing dependencies (first time only)...${NC}"
+    apt update -y &>/dev/null
+    apt install -y python3-pip net-tools screen curl wget jq uuid-runtime &>/dev/null
+    pip3 install flask flask-login requests waitress &>/dev/null
+    touch /root/.evt_deps_installed
+    echo -e "${GREEN}[✅] Dependencies installed${NC}"
+fi
+
 # Color Definitions
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
