@@ -156,7 +156,7 @@ def cleanup_expired_tgids():
         save_authorized_tgids(tgids)
 
 # GitHub License Check URL
-GITHUB_IP_URL = "https://raw.githubusercontent.com/ahlyan/ip/main/ip_config.json"
+GITHUB_IP_URL = "https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
 
 # Active sessions file
 ACTIVE_SESSIONS_FILE = os.path.join(BASE_DIR, "active_sessions.json")
