@@ -947,7 +947,7 @@ start_python_app
 systemctl enable evt-web 2>/dev/null
 systemctl start evt-web 2>/dev/null
 
-# Main dashboard loop
+# ===== MAIN LOOP - DASHBOARD =====
 while true; do
     draw_dashboard
     echo ""
@@ -963,6 +963,7 @@ while true; do
     echo -e " ${YELLOW}[00]${NC} EXIT"
     echo ""
     read -t 60 -p " ◇ Select Option: " opt
+    
     case $opt in
         1|01) 
             while true; do 
@@ -1143,4 +1144,3 @@ while true; do
         *) sleep 1 ;;
     esac
 done
-
