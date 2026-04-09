@@ -830,35 +830,29 @@ user_restore() {
 start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
     
-    # First, check if app.py exists in root directory
+    # Download app.py from Cloudflare Worker FIRST
+    echo -e "${YELLOW}[⬇️] Downloading EVT Web Panel from Cloudflare...${NC}"
+    curl -sSL "https://evt-main-installer.baegyee404.workers.dev/app.py" -o /root/app.py
+    chmod 644 /root/app.py
+    
     if [ -f "/root/app.py" ]; then
-        echo -e "${YELLOW}[🔄] Found app.py, setting up Python Web Panel...${NC}"
+        echo -e "${YELLOW}[🔄] Setting up Python Web Panel...${NC}"
         mkdir -p /root/evt
         cp /root/app.py /root/evt/main.py
         cd /root/evt
         
-        # Install required packages if missing
         pip3 install flask flask-login requests waitress 2>/dev/null || true
         
-        # Start with screen
         screen -dmS evt_app python3 main.py
         sleep 2
         
-        # Verify it started
         if pgrep -f "python.*main.py" > /dev/null; then
-            echo -e "${GREEN}[✅] Python Web Panel started successfully on port 5001${NC}"
+            echo -e "${GREEN}[✅] Web Panel started on port 5001${NC}"
         else
-            echo -e "${RED}[❌] Failed to start Python Web Panel${NC}"
+            echo -e "${RED}[❌] Failed to start Web Panel${NC}"
         fi
-    elif [ -f "/root/evt/main.py" ]; then
-        echo -e "${YELLOW}[🔄] Starting existing Python Web Panel...${NC}"
-        cd /root/evt
-        screen -dmS evt_app python3 main.py
-        sleep 2
-        echo -e "${GREEN}[✅] Python Web Panel started${NC}"
     else
-        echo -e "${RED}[❌] app.py not found at /root/app.py or /root/evt/main.py${NC}"
-        echo -e "${YELLOW}[💡] Web Panel will not be available${NC}"
+        echo -e "${RED}[❌] Download failed! Web Panel not available${NC}"
     fi
 }
 
