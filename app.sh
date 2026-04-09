@@ -14,7 +14,7 @@ BLUE='\033[1;34m'
 NC='\033[0m'
 
 # --- VPS IP LICENSE CHECK ---
-GITHUB_IP_URL="https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
+GIST_URL="https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
 LICENSE_FILE="/root/.evt_license"
 
 check_vps_ip() {
