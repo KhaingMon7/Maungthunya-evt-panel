@@ -830,14 +830,29 @@ user_restore() {
 start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
     
-    if [ -f "/root/evt/main.py" ]; then
-        echo -e "${YELLOW}[🔄] Starting Python App...${NC}"
+    # Check if app.py exists in current directory or root
+    if [ -f "app.py" ]; then
+        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
+        mkdir -p /root/evt
+        cp app.py /root/evt/main.py
         cd /root/evt
         screen -dmS evt_app python3 main.py
-        echo -e "${GREEN}[✅] Python App started in screen session 'evt_app'${NC}"
+        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
+    elif [ -f "/root/app.py" ]; then
+        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
+        mkdir -p /root/evt
+        cp /root/app.py /root/evt/main.py
+        cd /root/evt
+        screen -dmS evt_app python3 main.py
+        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
+    elif [ -f "/root/evt/main.py" ]; then
+        echo -e "${YELLOW}[🔄] Starting Python Web Panel...${NC}"
+        cd /root/evt
+        screen -dmS evt_app python3 main.py
+        echo -e "${GREEN}[✅] Python Web Panel started on port 5001${NC}"
     else
-        echo -e "${RED}[❌] Python App not found at /root/evt/main.py${NC}"
-        echo -e "${YELLOW}[💡] Please copy app.py to /root/evt/main.py${NC}"
+        echo -e "${RED}[❌] app.py not found! Web Panel will not start.${NC}"
+        echo -e "${YELLOW}[💡] Please upload app.py to /root/ or /root/evt/${NC}"
     fi
 }
 
