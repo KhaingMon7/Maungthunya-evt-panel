@@ -295,8 +295,6 @@ EOF
     systemctl daemon-reload &>/dev/null
     systemctl enable "$service_name" &>/dev/null
     systemctl enable evt-web &>/dev/null
-    systemctl start "$service_name" &>/dev/null
-    systemctl start evt-web &>/dev/null
     
     echo -e "${GREEN}[✅] Auto-restart services configured!${NC}"
     echo -e "${GREEN}[✅] EVT Dashboard will auto-start on reboot${NC}"
