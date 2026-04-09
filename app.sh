@@ -869,6 +869,9 @@ start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
     pkill -f "screen.*evt_app" 2>/dev/null
     
+    # Kill any process using port 5001
+    fuser -k 5001/tcp 2>/dev/null
+    
     # Download app.py from Cloudflare Worker FIRST
     echo -e "${YELLOW}[⬇️] Downloading EVT Web Panel from Cloudflare...${NC}"
     curl -sSL "https://evt-main-installer.baegyee404.workers.dev/app.py" -o /root/app.py
@@ -888,10 +891,11 @@ start_python_app() {
             echo -e "${GREEN}[✅] Python packages already installed${NC}"
         fi
         
-        # Kill any existing screen session first
+        # Kill any existing screen session
         screen -X -S evt_app quit 2>/dev/null
+        sleep 1
         
-        # Start new screen session with longer wait
+        # Start new screen session
         screen -dmS evt_app python3 main.py
         sleep 5
         
