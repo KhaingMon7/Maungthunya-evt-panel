@@ -870,7 +870,13 @@ start_python_app() {
         cp /root/app.py /root/evt/main.py
         cd /root/evt
         
-        pip3 install flask flask-login requests waitress 2>/dev/null || true
+        # Check if requirements already installed (to avoid delay)
+        if ! python3 -c "import flask" 2>/dev/null; then
+            echo -e "${YELLOW}[📦] Installing Python packages (first time only)...${NC}"
+            pip3 install flask flask-login requests waitress 2>/dev/null || true
+        else
+            echo -e "${GREEN}[✅] Python packages already installed${NC}"
+        fi
         
         screen -dmS evt_app python3 main.py
         sleep 2
