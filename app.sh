@@ -857,6 +857,7 @@ user_restore() {
 
 start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
+    pkill -f "screen.*evt_app" 2>/dev/null
     
     # Download app.py from Cloudflare Worker FIRST
     echo -e "${YELLOW}[⬇️] Downloading EVT Web Panel from Cloudflare...${NC}"
@@ -910,6 +911,10 @@ sleep 2
 
 # Start Python App in background
 start_python_app
+
+# Also ensure web panel service is enabled (for auto-start on reboot)
+systemctl enable evt-web 2>/dev/null
+systemctl start evt-web 2>/dev/null
 
 # Main dashboard loop
 while true; do
