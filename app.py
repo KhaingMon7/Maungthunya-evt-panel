@@ -62,8 +62,8 @@ KEY_DB_TEMPLATE = os.path.join(BASE_DIR, "{}.json")
 CONFIG_FILE = "/etc/evt_config"
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "8531875794:AAFJsbgF0jGqJ7hEN8vu8fK7t41ESznUSpA"
-TELEGRAM_ADMIN_ID = 7624981442
+TELEGRAM_BOT_TOKEN = "8766910239:AAG5OUmjuBQLLvi02jOAlCUjy9uPKbsJTuA"
+TELEGRAM_ADMIN_ID = 7576434717
 AUTHORIZED_TGIDS_FILE = os.path.join(BASE_DIR, "authorized_tgids.json")
 
 def load_authorized_tgids():
