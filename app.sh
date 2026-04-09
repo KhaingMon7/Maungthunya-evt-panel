@@ -2,9 +2,10 @@
 
 # ============================================
 # EVT SSH MANAGER - COMPLETE BASH SCRIPT
+# IP already verified by Cloudflare Worker
 # ============================================
 
-# Color Definitions (must be defined before usage)
+# Color Definitions
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[1;31m'
@@ -13,138 +14,39 @@ WHITE='\033[1;37m'
 BLUE='\033[1;34m'
 NC='\033[0m'
 
-# --- VPS IP LICENSE CHECK ---
-GIST_URL="https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
-LICENSE_FILE="/root/.evt_license"
+# ============================================
+# SKIP IP LICENSE CHECK - Already done by Cloudflare Worker
+# ============================================
 
-check_vps_ip() {
-    echo -e "${CYAN}[📡] Checking VPS IP License...${NC}"
-    
-    VPS_IP=$(curl -s --connect-timeout 10 https://api.ipify.org 2>/dev/null)
-    [ -z "$VPS_IP" ] && VPS_IP=$(curl -s --connect-timeout 10 https://icanhazip.com 2>/dev/null)
-    [ -z "$VPS_IP" ] && VPS_IP=$(curl -s --connect-timeout 10 https://ifconfig.me 2>/dev/null)
-    [ -z "$VPS_IP" ] && VPS_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    
-    if [ -z "$VPS_IP" ]; then
-        echo -e "${RED}[❌] Cannot get VPS IP address!${NC}"
-        return 1
-    fi
-    
-    echo -e "${CYAN}[🔍] Your VPS IP: ${YELLOW}$VPS_IP${NC}"
-    
-    local response=$(curl -s --connect-timeout 15 "$GITHUB_IP_URL" 2>/dev/null)
-    if [ -z "$response" ]; then
-        echo -e "${RED}[❌] Cannot connect to license server!${NC}"
-        return 1
-    fi
-    
-    # Enhanced IP check with multiple formats
-    local is_valid=0
-    
-    # Check if jq is available for better parsing
-    if command -v jq &>/dev/null; then
-        # Check if it's array format
-        if echo "$response" | jq -e '.vps_list' &>/dev/null 2>&1; then
-            if echo "$response" | jq -r '.vps_list[] | select(.active == true) | .vps_ip' 2>/dev/null | grep -q "^$VPS_IP$"; then
-                is_valid=1
-            fi
-        # Check if it's single IP format
-        elif echo "$response" | jq -e '.vps_ip' &>/dev/null 2>&1; then
-            local config_ip=$(echo "$response" | jq -r '.vps_ip' 2>/dev/null)
-            local active=$(echo "$response" | jq -r '.active // true' 2>/dev/null)
-            if [[ "$config_ip" == "$VPS_IP" ]] && [[ "$active" == "true" ]]; then
-                is_valid=1
-            fi
-        # Check if it's a simple list
-        elif echo "$response" | jq -e '.[]' &>/dev/null 2>&1; then
-            if echo "$response" | jq -r '.[] | select(.active == true) | .ip' 2>/dev/null | grep -q "^$VPS_IP$"; then
-                is_valid=1
-            fi
-        fi
-    fi
-    
-    # Fallback to grep if jq not available or no match found
-    if [ $is_valid -eq 0 ]; then
-        # Check various formats with grep
-        if echo "$response" | grep -q "\"vps_ip\": *\"$VPS_IP\"" && echo "$response" | grep -q "\"active\": *true"; then
-            is_valid=1
-        elif echo "$response" | grep -q "\"ip\": *\"$VPS_IP\"" && echo "$response" | grep -q "\"active\": *true"; then
-            is_valid=1
-        elif echo "$response" | grep -q "$VPS_IP"; then
-            # Simple string match (less strict)
-            is_valid=1
-        fi
-    fi
-    
-    if [ $is_valid -eq 1 ]; then
-        echo -e "${GREEN}[✅] License Valid!${NC}"
-        echo "$VPS_IP" > "$LICENSE_FILE"
-        return 0
-    else
-        # Clear color codes for error message
-        echo ""
-        echo "╔════════════════════════════════════════════════════════════╗"
-        echo "║  ❌ VPS IP VERIFICATION FAILED ❌                           ║"
-        echo "╠════════════════════════════════════════════════════════════╣"
-        echo "║  VPS IP Address: $VPS_IP                                   "
-        echo "║  Status: Not Authorized                                    "
-        echo "║                                                            "
-        echo "║  This VPS IP is not registered in our system.              "
-        echo "║  Please contact support to get access.                     "
-        echo "║                                                            "
-        echo "║  📞 Contact: @Zero_Free_Vpn                        "
-        echo "║  📧 Support Group: https://t.me/zero_freevpn                              "
-        echo "╚════════════════════════════════════════════════════════════╝"
-        echo ""
-        return 1
-    fi
-}
-
-# Check license before proceeding
-echo ""
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║           EVT SSH MANAGER - License Verification          ║"
-echo "╚════════════════════════════════════════════════════════════╝"
+# Display that IP is already verified
+echo -e "${GREEN}[✅] IP already verified by Cloudflare Worker${NC}"
 echo ""
 
-if [ -f "$LICENSE_FILE" ]; then
-    cached_ip=$(cat "$LICENSE_FILE" 2>/dev/null)
-    echo -e "${CYAN}[📦] Found cached license for IP: ${YELLOW}$cached_ip${NC}"
-    
-    # Verify cached IP still matches current IP
-    current_ip=$(curl -s --connect-timeout 10 https://api.ipify.org 2>/dev/null)
-    if [ -n "$current_ip" ] && [ "$cached_ip" = "$current_ip" ]; then
-        echo -e "${GREEN}[✅] Using cached license${NC}"
-        VPS_IP="$current_ip"
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-    else
-        echo -e "${YELLOW}[⚠️] Cached license IP mismatch or expired. Re-validating...${NC}"
-        if ! check_vps_ip; then
-            exit 1
-        fi
-    fi
-else
-    if ! check_vps_ip; then
-        exit 1
-    fi
-fi
+# ============================================
+# DEPENDENCIES CHECK
+# ============================================
 
-# --- Dependencies & Initial Check ---
 if ! command -v netstat &> /dev/null; then
     apt update -y &> /dev/null
     apt install net-tools lsb-release python3 screen psmisc lsof curl wget jq uuid-runtime -y &> /dev/null
 fi
+
+# ============================================
+# CONFIGURATION FILES
+# ============================================
 
 CONFIG_FILE="/etc/evt_config"
 USER_DB="/etc/evt_users.db"
 KEYS_DB="/root/keys.json"
 BACKUP_FILE="/root/backup.txt"
 RESTORE_FILE="/root/restore.txt"
+
 [ ! -f "$USER_DB" ] && touch "$USER_DB"
 
-# --- Setup Functions ---
+# ============================================
+# INITIAL SETUP
+# ============================================
+
 do_initial_setup() {
     clear
     echo -e "${CYAN}──────────────────────────────────────────────────${NC}"
@@ -202,7 +104,6 @@ sync_keys_to_system() {
     local errors=0
     local user_list=""
     
-    # Read each user from keys.json
     while IFS= read -r line; do
         local key=$(echo "$line" | cut -d'|' -f1)
         local username=$(echo "$line" | cut -d'|' -f2)
@@ -211,13 +112,10 @@ sync_keys_to_system() {
         local limit=$(echo "$line" | cut -d'|' -f5)
         
         if [[ -n "$username" && -n "$password" && "$username" != "null" ]]; then
-            # Check if user exists in system
             if id "$username" &>/dev/null; then
-                # Update password only
                 echo "$username:$password" | chpasswd &>/dev/null
                 echo -e "${GREEN}[✓] Updated: $username${NC}"
             else
-                # Create new user
                 if [[ "$expiry" != "No Expiry" && -n "$expiry" && "$expiry" != "null" ]]; then
                     useradd -e "$expiry" -M -s /bin/false "$username" &>/dev/null
                 else
@@ -227,11 +125,8 @@ sync_keys_to_system() {
                 echo -e "${GREEN}[✓] Created: $username${NC}"
             fi
             
-            # Update limits
             sed -i "/^$username hard/d" /etc/security/limits.conf &>/dev/null
             echo "$username hard maxlogins ${limit:-1}" >> /etc/security/limits.conf
-            
-            # Update USER_DB
             sed -i "/^$username:/d" "$USER_DB" &>/dev/null
             echo "$username:$password" >> "$USER_DB"
             
@@ -274,12 +169,9 @@ auto_killer() {
             
             if [[ "$expiry" != "null" && "$expiry" != "No Expiry" && -n "$expiry" ]]; then
                 if [[ "$expiry" < "$current_date" ]]; then
-                    # Delete expired user
                     userdel -f "$username" &>/dev/null
                     sed -i "/^$username:/d" "$USER_DB" &>/dev/null
                     sed -i "/$username hard maxlogins/d" /etc/security/limits.conf &>/dev/null
-                    
-                    # Remove from keys.json
                     keys_data=$(echo "$keys_data" | jq "del(.keys[\"$key\"])")
                     updated=true
                     deleted=$((deleted + 1))
@@ -348,11 +240,9 @@ setup_auto_restart() {
     local script_path="/usr/local/bin/evtbash"
     local service_file="/etc/systemd/system/${service_name}.service"
     
-    # Copy script to /usr/local/bin
     cp "$0" "$script_path" 2>/dev/null
     chmod +x "$script_path"
     
-    # Create systemd service
     cat > "$service_file" << EOF
 [Unit]
 Description=EVT Bash Manager - Auto Restart Service
@@ -433,7 +323,6 @@ show_user_info() {
     echo -e "${CYAN}${NC}${YELLOW}               -- USER INFORMATION --${NC}${CYAN}                        ${NC}"
     echo -e "${CYAN}────────────────────────────────────────────────────────${NC}"
     
-    # SYSTEM USER INFO
     if id "$username" &>/dev/null; then
         local pass=$(grep "^$username:" "$USER_DB" 2>/dev/null | cut -d: -f2)
         local exp_date=$(chage -l "$username" 2>/dev/null | grep "Account expires" | cut -d: -f2 | xargs)
@@ -451,7 +340,6 @@ show_user_info() {
         printf "${CYAN}${NC} %-16s : ${RED}%-40s${NC} ${CYAN}${NC}\n" "[SYSTEM] Status" "User not found in system!"
     fi
     
-    # KEYS.JSON INFO
     if [ -f "$KEYS_DB" ]; then
         local keys_data=$(cat "$KEYS_DB" 2>/dev/null | jq . 2>/dev/null)
         if [ -n "$keys_data" ] && [ "$keys_data" != "null" ]; then
@@ -481,7 +369,6 @@ show_user_info() {
         printf "${CYAN}${NC} %-16s : ${RED}%-40s${NC} ${CYAN}${NC}\n" "[KEYS.JSON] Status" "keys.json not found!"
     fi
     
-    # DNS & PORTS INFO
     get_slowdns_key_info
     get_ports
     
@@ -513,13 +400,11 @@ create_user_with_keys() {
     local days="$3"
     local limit="$4"
     
-    # Check if already exists
     if id "$username" &>/dev/null; then
         echo -e "${RED}User already exists!${NC}"
         return 1
     fi
     
-    # Check keys.json
     if [ -f "$KEYS_DB" ]; then
         local existing=$(cat "$KEYS_DB" 2>/dev/null | jq -r ".keys[] | select(.username == \"$username\") | .username" 2>/dev/null)
         if [[ -n "$existing" && "$existing" != "null" ]]; then
@@ -528,17 +413,14 @@ create_user_with_keys() {
         fi
     fi
     
-    # Calculate expiry date
     local exp_date=$(date -d "+$days days" +"%Y-%m-%d" 2>/dev/null)
     
-    # Create system user
     useradd -e "$exp_date" -M -s /bin/false "$username" &>/dev/null
     echo "$username:$password" | chpasswd &>/dev/null
     sed -i "/$username hard maxlogins/d" /etc/security/limits.conf &>/dev/null
     echo "$username hard maxlogins $limit" >> /etc/security/limits.conf
     echo "$username:$password" >> "$USER_DB"
     
-    # Add to keys.json
     local key_id="EVT-$(uuidgen | tr -d '-' | cut -c1-8 | tr 'a-z' 'A-Z')"
     local created_at=$(date "+%Y-%m-%d %H:%M:%S")
     
@@ -589,13 +471,11 @@ delete_user_with_keys() {
         return 1
     fi
     
-    # Delete from system
     pkill -u "$username" &>/dev/null
     userdel -f "$username" &>/dev/null
     sed -i "/^$username:/d" "$USER_DB" &>/dev/null
     sed -i "/$username hard maxlogins/d" /etc/security/limits.conf &>/dev/null
     
-    # Delete from keys.json
     if [ -f "$KEYS_DB" ]; then
         local keys_data=$(cat "$KEYS_DB" 2>/dev/null | jq . 2>/dev/null)
         local key=$(echo "$keys_data" | jq -r ".keys | to_entries[] | select(.value.username == \"$username\") | .key" 2>/dev/null)
@@ -782,17 +662,14 @@ EOF
 inst_dropbear() {
     echo -e "${YELLOW}Setting up Dropbear on ports 143 and 110...${NC}"
     
-    # Install dropbear if not installed
     if ! command -v dropbear &> /dev/null; then
         apt-get install -y dropbear
     fi
     
-    # Backup original config
     if [ -f "/etc/default/dropbear" ]; then
         cp /etc/default/dropbear /etc/default/dropbear.backup.$(date +%s)
     fi
     
-    # Configure dropbear to listen on port 143 and 110
     cat > /etc/default/dropbear << 'EOF'
 # Dropbear configuration
 NO_START=0
@@ -805,10 +682,8 @@ DROPBEAR_ECDSAKEY="/etc/dropbear/dropbear_ecdsa_host_key"
 DROPBEAR_RECEIVE_WINDOW=65536
 EOF
     
-    # Ensure dropbear directories exist
     mkdir -p /etc/dropbear
     
-    # Generate host keys if they don't exist
     if [ ! -f "/etc/dropbear/dropbear_rsa_host_key" ]; then
         dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key -s 2048 &> /dev/null
     fi
@@ -819,26 +694,21 @@ EOF
         dropbearkey -t ecdsa -f /etc/dropbear/dropbear_ecdsa_host_key -s 521 &> /dev/null
     fi
     
-    # Configure firewall
     if command -v ufw &> /dev/null; then
         ufw allow 143/tcp &> /dev/null
         ufw allow 110/tcp &> /dev/null
         ufw reload &> /dev/null
     fi
     
-    # Configure iptables
     iptables -A INPUT -p tcp --dport 143 -j ACCEPT &> /dev/null
     iptables -A INPUT -p tcp --dport 110 -j ACCEPT &> /dev/null
     
-    # Save iptables rules if iptables-persistent is installed
     if command -v iptables-save &> /dev/null; then
         iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
     fi
     
-    # Restart dropbear service
     systemctl restart dropbear &> /dev/null || service dropbear restart &> /dev/null
     
-    # Verify dropbear is running
     sleep 2
     if pgrep -x "dropbear" > /dev/null; then
         echo -e "${GREEN}✓ Dropbear started successfully on ports: 143 and 110${NC}"
@@ -966,10 +836,8 @@ user_restore() {
 # ============================================
 
 start_python_app() {
-    # Kill existing Python apps if running
     pkill -f "python.*main.py" 2>/dev/null
     
-    # Check if Python app exists
     if [ -f "/root/evt/main.py" ]; then
         echo -e "${YELLOW}[🔄] Starting Python App...${NC}"
         cd /root/evt
@@ -984,10 +852,8 @@ start_python_app() {
 # MAIN DASHBOARD
 # ============================================
 
-# Check and setup auto-restart
 check_auto_restart
 
-# Run auto killer in background
 (
     while true; do
         auto_killer
@@ -995,17 +861,19 @@ check_auto_restart
     done
 ) &
 
-# Show VPS IP on startup
+# Get VPS IP for display only (not for license check)
+VPS_IP=$(curl -s --connect-timeout 10 https://api.ipify.org 2>/dev/null)
+[ -z "$VPS_IP" ] && VPS_IP=$(curl -s --connect-timeout 10 https://icanhazip.com 2>/dev/null)
+[ -z "$VPS_IP" ] && VPS_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
 clear
 echo -e "${CYAN}──────────────────────────────────────────────────────────${NC}"
 echo -e "${CYAN}${NC}${YELLOW}               EVT SSH MANAGER - VPS: ${GREEN}$VPS_IP${YELLOW}${NC}${CYAN}                ${NC}"
 echo -e "${CYAN}────────────────────────────────────────────────────────${NC}"
 sleep 2
 
-# Start Python App
 start_python_app
 
-# Main loop
 while true; do
     draw_dashboard
     echo ""
