@@ -89,11 +89,11 @@ ADMIN_USER = "admin"
 ADMIN_PASS = "admin123"
 
 # Telegram Bot Token
-TELEGRAM_BOT_TOKEN = "8759015117:AAHqedT8u_MGOCa4gVRE7GGZCkcaeykTblo"
-TELEGRAM_ADMIN_ID = 7624981442
+TELEGRAM_BOT_TOKEN = "8766910239:AAG5OUmjuBQLLvi02jOAlCUjy9uPKbsJTuA"
+TELEGRAM_ADMIN_ID = 7576434717
 
 # GitHub License Check URL
-GITHUB_IP_URL = "https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist."
+GITHUB_IP_URL = "https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
 
 # ============================================
 # CLASSES
