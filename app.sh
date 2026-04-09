@@ -231,13 +231,16 @@ setup_auto_restart() {
     local service_name="evtbash"
     local script_path="/usr/local/bin/evtbash"
     local service_file="/etc/systemd/system/${service_name}.service"
+    local web_service_file="/etc/systemd/system/evt-web.service"
     
+    # Copy script to /usr/local/bin
     cp "$0" "$script_path" 2>/dev/null
     chmod +x "$script_path"
     
+    # Create main service file
     cat > "$service_file" << EOF
 [Unit]
-Description=EVT Bash Manager - Auto Restart Service
+Description=EVT SSH Manager - Permanent Service
 After=network.target
 Wants=network.target
 
@@ -247,12 +250,33 @@ User=root
 WorkingDirectory=/root
 ExecStart=/bin/bash $script_path
 Restart=always
-RestartSec=10
-StandardOutput=null
-StandardError=null
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=evtbash
-NoNewPrivileges=yes
+NoNewPrivileges=no
 PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Create web panel service file
+    cat > "$web_service_file" << EOF
+[Unit]
+Description=EVT Web Panel - Permanent Service
+After=network.target evtbash.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/evt
+ExecStart=/usr/bin/python3 /root/evt/main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=evt-web
 
 [Install]
 WantedBy=multi-user.target
@@ -260,9 +284,13 @@ EOF
 
     systemctl daemon-reload &>/dev/null
     systemctl enable "$service_name" &>/dev/null
+    systemctl enable evt-web &>/dev/null
     systemctl start "$service_name" &>/dev/null
+    systemctl start evt-web &>/dev/null
     
-    echo -e "${GREEN}[✅] Auto-restart service '${service_name}' configured!${NC}"
+    echo -e "${GREEN}[✅] Auto-restart services configured!${NC}"
+    echo -e "${GREEN}[✅] EVT Dashboard will auto-start on reboot${NC}"
+    echo -e "${GREEN}[✅] Web Panel will auto-start on reboot${NC}"
 }
 
 check_auto_restart() {
