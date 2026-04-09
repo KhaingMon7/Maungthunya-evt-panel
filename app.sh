@@ -14,11 +14,6 @@ WHITE='\033[1;37m'
 BLUE='\033[1;34m'
 NC='\033[0m'
 
-# ============================================
-# SKIP IP LICENSE CHECK - Already done by Cloudflare Worker
-# ============================================
-
-# Display that IP is already verified
 echo -e "${GREEN}[✅] IP already verified by Cloudflare Worker${NC}"
 echo ""
 
@@ -157,7 +152,6 @@ auto_killer() {
     local killed=0
     local deleted=0
     
-    # 1. Check and delete expired users from keys.json
     if [ -f "$KEYS_DB" ]; then
         local keys_data=$(cat "$KEYS_DB" 2>/dev/null | jq . 2>/dev/null)
         local updated=false
@@ -184,7 +178,6 @@ auto_killer() {
         fi
     fi
     
-    # 2. Check and delete expired users from system
     if [ -s "$USER_DB" ]; then
         while IFS=: read -r u p; do
             [[ -z "$u" || "$u" == "root" ]] && continue
@@ -203,7 +196,6 @@ auto_killer() {
         done < "$USER_DB"
     fi
     
-    # 3. Check and kill users exceeding limit
     if [ -s "$USER_DB" ]; then
         while IFS=: read -r u p; do
             [[ -z "$u" || "$u" == "root" ]] && continue
@@ -845,6 +837,7 @@ start_python_app() {
         echo -e "${GREEN}[✅] Python App started in screen session 'evt_app'${NC}"
     else
         echo -e "${RED}[❌] Python App not found at /root/evt/main.py${NC}"
+        echo -e "${YELLOW}[💡] Please copy app.py to /root/evt/main.py${NC}"
     fi
 }
 
@@ -861,7 +854,7 @@ check_auto_restart
     done
 ) &
 
-# Get VPS IP for display only (not for license check)
+# Get VPS IP for display only
 VPS_IP=$(curl -s --connect-timeout 10 https://api.ipify.org 2>/dev/null)
 [ -z "$VPS_IP" ] && VPS_IP=$(curl -s --connect-timeout 10 https://icanhazip.com 2>/dev/null)
 [ -z "$VPS_IP" ] && VPS_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -872,8 +865,10 @@ echo -e "${CYAN}${NC}${YELLOW}               EVT SSH MANAGER - VPS: ${GREEN}$VPS
 echo -e "${CYAN}────────────────────────────────────────────────────────${NC}"
 sleep 2
 
+# Start Python App in background
 start_python_app
 
+# Main dashboard loop
 while true; do
     draw_dashboard
     echo ""
