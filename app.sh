@@ -1099,7 +1099,12 @@ while true; do
             echo -e "${CYAN}───────────────────────────────────────────────────────${NC}"
             sleep 3
             ;;
-        0|00) exit 0 ;;
+        0|00) 
+            echo -e "${RED}[⚠️] Cannot exit! Service must run permanently.${NC}"
+            echo -e "${YELLOW}[💡] Use 'systemctl stop evtbash' to stop service${NC}"
+            sleep 2
+            ;;
         *) sleep 1 ;;
     esac
 done
+
