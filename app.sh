@@ -14,7 +14,7 @@ BLUE='\033[1;34m'
 NC='\033[0m'
 
 # --- VPS IP LICENSE CHECK ---
-GITHUB_IP_URL="https://raw.githubusercontent.com/ahlyan/ip/main/ip_config.json"
+GITHUB_IP_URL="https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
 LICENSE_FILE="/root/.evt_license"
 
 check_vps_ip() {
@@ -92,8 +92,8 @@ check_vps_ip() {
         echo "║  This VPS IP is not registered in our system.              "
         echo "║  Please contact support to get access.                     "
         echo "║                                                            "
-        echo "║  📞 Contact: https://t.me/evtvpn143                        "
-        echo "║  📧 Support: evtvpn@gmail.com                              "
+        echo "║  📞 Contact: @Zero_Free_Vpn                        "
+        echo "║  📧 Support Group: https://t.me/zero_freevpn                              "
         echo "╚════════════════════════════════════════════════════════════╝"
         echo ""
         return 1
