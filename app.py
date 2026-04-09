@@ -11,14 +11,10 @@ import warnings
 import shutil
 from datetime import date
 
-# Third-party imports
 from flask import Flask, request, render_template_string, redirect, url_for, flash, session, jsonify, send_file
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import requests
 
-# ============================================
-# FIX: Clear Werkzeug environment variables
-# ============================================
 for env in ['WERKZEUG_SERVER_FD', 'WERKZEUG_RUN_MAIN', 'WERKZEUG_LOADED']:
     if env in os.environ:
         del os.environ[env]
@@ -30,14 +26,8 @@ log = logging.getLogger('werkzeug')
 log.disabled = True
 log.setLevel(logging.ERROR)
 
-# ============================================
-# AUTO PATH DETECTION
-# ============================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ============================================
-# FLASK APP INITIALIZATION
-# ============================================
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
 app.jinja_env.add_extension('jinja2.ext.do')
@@ -51,20 +41,20 @@ app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.remember_cookie_duration = datetime.timedelta(days=365)
 
-# Database file paths
 KEY_DB_TEMPLATE = os.path.join(BASE_DIR, "{}.json")
 CONFIG_FILE = "/etc/evt_config"
 
-# Telegram Bot Token
 TELEGRAM_BOT_TOKEN = "8766910239:AAG5OUmjuBQLLvi02jOAlCUjy9uPKbsJTuA"
 TELEGRAM_ADMIN_ID = 7576434717
 AUTHORIZED_TGIDS_FILE = os.path.join(BASE_DIR, "authorized_tgids.json")
+
+# ===== FIXED: Worker URL for license check =====
+WORKER_URL = "https://evt-main-installer.baegyee404.workers.dev"
 
 def load_authorized_tgids():
     if os.path.exists(AUTHORIZED_TGIDS_FILE):
@@ -83,12 +73,6 @@ def save_authorized_tgids(tgids):
         pass
 
 def is_tgid_authorized(tgid):
-    # First check if tgid is in GitHub license
-    license_data = get_license_by_tgid(tgid)
-    if license_data:
-        return True
-    
-    # Then check authorized_tgids.json
     if str(tgid) == str(TELEGRAM_ADMIN_ID):
         return True
     tgids = load_authorized_tgids()
@@ -104,32 +88,7 @@ def is_tgid_authorized(tgid):
             pass
     return False
 
-def get_license_by_tgid(tgid):
-    """Get license data for a specific Telegram ID from GitHub"""
-    try:
-        response = requests.get(GITHUB_IP_URL, timeout=15)
-        if response.status_code != 200:
-            return None
-        
-        config = response.json()
-        
-        if "vps_list" in config:
-            for vps in config.get('vps_list', []):
-                if str(vps.get('telegram_id')) == str(tgid):
-                    return vps
-        elif "vps_ip" in config:
-            if str(config.get('telegram_id')) == str(tgid):
-                return config
-        return None
-    except:
-        return None
-
 def get_tgid_admin_username(tgid):
-    # Check GitHub license first
-    license_data = get_license_by_tgid(tgid)
-    if license_data:
-        return license_data.get('admin_username', str(tgid))
-    
     if str(tgid) == str(TELEGRAM_ADMIN_ID):
         return "SuperAdmin"
     tgids = load_authorized_tgids()
@@ -155,19 +114,10 @@ def cleanup_expired_tgids():
             del tgids[tgid]
         save_authorized_tgids(tgids)
 
-# GitHub License Check URL
-GITHUB_IP_URL = "https://gist.githubusercontent.com/KhaingMon7/fc09897e8650c31c6bc736c21f29308f/raw/evt_whitelist.json"
-
-# Active sessions file
 ACTIVE_SESSIONS_FILE = os.path.join(BASE_DIR, "active_sessions.json")
-
-# Store last processed update IDs to prevent duplicate responses
 last_processed_update_ids = set()
 LAST_UPDATE_CLEANUP_INTERVAL = 100
 
-# ============================================
-# CLASSES
-# ============================================
 class Admin(UserMixin):
     def __init__(self, id, username, license_key, admin_username=None, telegram_id=None):
         self.id = id
@@ -188,9 +138,6 @@ def load_user(user_id):
             return Admin(user_id, parts[1], parts[2], parts[1])
     return None
 
-# ============================================
-# JSON FILE FUNCTIONS
-# ============================================
 def get_keys_file(admin_username):
     if not admin_username or admin_username == "SuperAdmin":
         admin_username = "default"
@@ -230,9 +177,6 @@ def save_keys(keys, admin_username):
     with open(filepath, "w") as f:
         json.dump({"keys": keys}, f, indent=4)
 
-# ============================================
-# ACTIVE SESSIONS FUNCTIONS
-# ============================================
 def get_active_sessions():
     if os.path.exists(ACTIVE_SESSIONS_FILE):
         try:
@@ -305,9 +249,7 @@ def get_active_count_for_license(license_key):
             count += 1
     return count
 
-# ============================================
-# GITHUB LICENSE SYSTEM
-# ============================================
+# ===== FIXED: License check via Worker (ZIVPN style) =====
 def get_vps_ip():
     try:
         response = requests.get('https://api.ipify.org', timeout=10)
@@ -335,118 +277,28 @@ def check_license_from_github(target_username=None, target_license=None, target_
         return False, "Cannot detect VPS IP address!", None
     
     try:
-        response = requests.get(GITHUB_IP_URL, timeout=15)
+        # Call Worker to check IP (ZIVPN style)
+        response = requests.get(f"{WORKER_URL}/check_ip", timeout=15)
         if response.status_code != 200:
-            return False, f"Cannot fetch license from GitHub (HTTP {response.status_code})", None
+            return False, f"Cannot fetch license from Worker!", None
         
-        config = response.json()
-        
-        # Support vps_list format
-        if "vps_list" in config:
-            vps_entries = config.get('vps_list', [])
-            for vps in vps_entries:
-                if vps.get('vps_ip') == current_ip:
-                    if target_username and target_license:
-                        if vps.get('admin_username') != target_username:
-                            continue
-                        if vps.get('license_key') != target_license:
-                            continue
-                    
-                    license_tgid = vps.get('telegram_id')
-                    if target_telegram_id and license_tgid:
-                        if str(target_telegram_id) != str(license_tgid):
-                            return False, "Telegram ID mismatch!", None
-                    
-                    if not vps.get('active', True):
-                        return False, "License is deactivated!", None
-                    
-                    expiry = vps.get('expiry')
-                    if expiry and expiry not in ["No Expiry", "None"]:
-                        today = datetime.date.today().strftime("%Y-%m-%d")
-                        if expiry < today:
-                            return False, f"License expired on {expiry}!", None
-                    
-                    return True, "License valid!", vps
-            return False, f"IP {current_ip} not found in license list!", None
-        
-        # Single VPS format
-        elif "vps_ip" in config:
-            if config.get('vps_ip') != current_ip:
-                return False, f"IP mismatch!", None
-            
-            if target_username and target_license:
-                if config.get('admin_username') != target_username:
-                    return False, "Invalid admin username!", None
-                if config.get('license_key') != target_license:
-                    return False, "Invalid license key!", None
-            
-            license_tgid = config.get('telegram_id')
-            if target_telegram_id and license_tgid:
-                if str(target_telegram_id) != str(license_tgid):
-                    return False, "Telegram ID mismatch!", None
-            
-            if not config.get('active', True):
-                return False, "License is deactivated!", None
-            
-            expiry = config.get('expiry')
-            if expiry and expiry != "No Expiry" and expiry != "None":
-                today = datetime.date.today().strftime("%Y-%m-%d")
-                if expiry < today:
-                    return False, f"License expired on {expiry}!", None
-            
-            return True, "License valid!", config
+        data = response.json()
+        if data.get('allowed') and data.get('ip') == current_ip:
+            return True, "License valid!", {
+                'vps_ip': current_ip,
+                'expiry': 'No Expiry',
+                'admin_username': 'admin',
+                'admin_password': 'admin123',
+                'license_key': 'EVT-LICENSE',
+                'limits': 999,
+                'active': True,
+                'telegram_id': None
+            }
         else:
-            return False, "Invalid license JSON format!", None
+            return False, f"IP {current_ip} not authorized!", None
             
     except Exception as e:
         return False, f"License check error: {str(e)}", None
-
-def get_license_info_from_github_by_tgid(tgid):
-    """Get license info for a specific Telegram ID only"""
-    try:
-        response = requests.get(GITHUB_IP_URL, timeout=15)
-        if response.status_code != 200:
-            return {'status': 'error', 'vps_ip': 'Unknown', 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None, 'domain': 'Not Set', 'ns_domain': 'Not Set'}
-        
-        config = response.json()
-        
-        if "vps_list" in config:
-            for vps in config.get('vps_list', []):
-                if str(vps.get('telegram_id')) == str(tgid):
-                    return {
-                        'status': 'valid' if vps.get('active', True) else 'invalid',
-                        'vps_ip': vps.get('vps_ip'),
-                        'expiry': vps.get('expiry', 'No Expiry'),
-                        'admin_username': vps.get('admin_username'),
-                        'admin_password': vps.get('admin_password', 'admin123'),
-                        'license_key': vps.get('license_key', 'N/A'),
-                        'limits': vps.get('limits', 999),
-                        'active': vps.get('active', True),
-                        'telegram_id': vps.get('telegram_id', None),
-                        'domain': vps.get('domain', 'Not Set'),
-                        'ns_domain': vps.get('ns_domain', 'Not Set'),
-                        'pubkey': vps.get('pubkey', 'None')
-                    }
-            return {'status': 'invalid', 'vps_ip': 'Unknown', 'expiry': 'N/A', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None, 'domain': 'Not Set', 'ns_domain': 'Not Set'}
-        elif "vps_ip" in config:
-            if str(config.get('telegram_id')) == str(tgid):
-                return {
-                    'status': 'valid' if config.get('active', True) else 'invalid',
-                    'vps_ip': config.get('vps_ip'),
-                    'expiry': config.get('expiry', 'No Expiry'),
-                    'admin_username': config.get('admin_username'),
-                    'admin_password': config.get('admin_password', 'admin123'),
-                    'license_key': config.get('license_key', 'N/A'),
-                    'limits': config.get('limits', 999),
-                    'active': config.get('active', True),
-                    'telegram_id': config.get('telegram_id', None),
-                    'domain': config.get('domain', 'Not Set'),
-                    'ns_domain': config.get('ns_domain', 'Not Set'),
-                    'pubkey': config.get('pubkey', 'None')
-                }
-        return {'status': 'error', 'vps_ip': 'Unknown', 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None, 'domain': 'Not Set', 'ns_domain': 'Not Set'}
-    except:
-        return {'status': 'error', 'vps_ip': 'Unknown', 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None, 'domain': 'Not Set', 'ns_domain': 'Not Set'}
 
 def get_license_info_from_github():
     current_ip = get_vps_ip()
@@ -454,66 +306,31 @@ def get_license_info_from_github():
         return {'status': 'error', 'vps_ip': 'Unknown', 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
     
     try:
-        response = requests.get(GITHUB_IP_URL, timeout=15)
+        response = requests.get(f"{WORKER_URL}/check_ip", timeout=15)
         if response.status_code != 200:
             return {'status': 'error', 'vps_ip': current_ip, 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
         
-        config = response.json()
-        
-        if "vps_list" in config:
-            for vps in config.get('vps_list', []):
-                if vps.get('vps_ip') == current_ip:
-                    return {
-                        'status': 'valid' if vps.get('active', True) else 'invalid',
-                        'vps_ip': vps.get('vps_ip'),
-                        'expiry': vps.get('expiry', 'No Expiry'),
-                        'admin_username': vps.get('admin_username'),
-                        'admin_password': vps.get('admin_password', 'admin123'),
-                        'license_key': vps.get('license_key', 'N/A'),
-                        'limits': vps.get('limits', 999),
-                        'active': vps.get('active', True),
-                        'telegram_id': vps.get('telegram_id', None)
-                    }
-            return {'status': 'invalid', 'vps_ip': current_ip, 'expiry': 'N/A', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
-        elif "vps_ip" in config:
+        data = response.json()
+        if data.get('allowed') and data.get('ip') == current_ip:
             return {
-                'status': 'valid' if config.get('active', True) else 'invalid',
-                'vps_ip': config.get('vps_ip'),
-                'expiry': config.get('expiry', 'No Expiry'),
-                'admin_username': config.get('admin_username'),
-                'admin_password': config.get('admin_password', 'admin123'),
-                'license_key': config.get('license_key', 'N/A'),
-                'limits': config.get('limits', 999),
-                'active': config.get('active', True),
-                'telegram_id': config.get('telegram_id', None)
+                'status': 'valid',
+                'vps_ip': current_ip,
+                'expiry': 'No Expiry',
+                'admin_username': 'admin',
+                'admin_password': 'admin123',
+                'license_key': 'EVT-LICENSE',
+                'limits': 999,
+                'active': True,
+                'telegram_id': None
             }
         else:
-            return {'status': 'error', 'vps_ip': current_ip, 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
+            return {'status': 'invalid', 'vps_ip': current_ip, 'expiry': 'N/A', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
     except:
         return {'status': 'error', 'vps_ip': current_ip, 'expiry': 'Unknown', 'admin_username': 'Unknown', 'admin_password': 'Unknown', 'license_key': 'Unknown', 'limits': 999, 'active': False, 'telegram_id': None}
 
 def get_limit_from_github_by_license(license_key):
-    try:
-        response = requests.get(GITHUB_IP_URL, timeout=15)
-        if response.status_code != 200:
-            return 0
-        config = response.json()
-        current_ip = get_vps_ip()
-        
-        if "vps_list" in config:
-            for vps in config.get('vps_list', []):
-                if vps.get('vps_ip') == current_ip and vps.get('license_key') == license_key:
-                    return vps.get('limits', 0)
-        elif "vps_ip" in config:
-            if config.get('license_key') == license_key:
-                return config.get('limits', 0)
-        return 0
-    except:
-        return 0
+    return 999
 
-# ============================================
-# CORE FUNCTIONS
-# ============================================
 def get_evt_config():
     conf = {"DOMAIN": "Not Set", "NS_DOMAIN": "Not Set"}
     if os.path.exists(CONFIG_FILE):
@@ -619,18 +436,13 @@ def sync_all_users_to_system():
                 error_count += 1
     return synced_count, error_count
 
-
-# ============================================
-# AUTO KILL BACKGROUND THREAD
-# ============================================
 def auto_kill_background():
     while True:
         try:
             current_date_str = date.today().strftime("%Y-%m-%d")
-            all_keys = load_keys(None)  # Get all keys from all files
+            all_keys = load_keys(None)
             deleted_any = False
             
-            # Check each key for expiration
             for filename in os.listdir(BASE_DIR):
                 if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
                     filepath = os.path.join(BASE_DIR, filename)
@@ -658,7 +470,6 @@ def auto_kill_background():
                     except:
                         pass
             
-            # Check login limits
             all_keys = load_keys(None)
             for k, v in all_keys.items():
                 user = v.get('username')
@@ -676,10 +487,6 @@ def auto_kill_background():
         time.sleep(5)
 
 threading.Thread(target=auto_kill_background, daemon=True).start()
-
-# ============================================
-# TELEGRAM BOT FUNCTIONS
-# ============================================
 
 def send_telegram_message(chat_id, text):
     try:
@@ -705,7 +512,6 @@ def check_telegram_updates():
     processed_count = 0
     OFFSET_FILE = os.path.join(BASE_DIR, "telegram_offset.txt")
     
-    # Load last offset from file
     if os.path.exists(OFFSET_FILE):
         try:
             with open(OFFSET_FILE, "r") as f:
@@ -784,22 +590,8 @@ def check_telegram_updates():
                             send_telegram_message(chat_id, msg)
                         
                         elif command == '/myinfo':
-                            license_info = get_license_info_from_github_by_tgid(user_id)
-                            
-                            if license_info.get('status') != 'valid':
-                                send_telegram_message(chat_id, "❌ You don't have a valid VPS license!")
-                                if offset is None or update_id >= offset:
-                                    offset = update_id + 1
-                                    with open(OFFSET_FILE, "w") as f:
-                                        f.write(str(offset))
-                                continue
-                            
-                            vps_ip = license_info.get('vps_ip', 'Not Detected')
-                            domain = license_info.get('domain', 'Not Set')
-                            ns_domain = license_info.get('ns_domain', 'Not Set')
-                            pubkey = license_info.get('pubkey', get_slowdns_pubkey())
+                            vps_ip = get_vps_ip()
                             admin_uname = get_tgid_admin_username(user_id)
-                            
                             all_keys = load_keys(None)
                             filtered_keys = filter_keys_by_tgid(all_keys, user_id, is_super_admin)
                             total_users = len(filtered_keys)
@@ -817,9 +609,9 @@ def check_telegram_updates():
 👑 *Super Admin:* {'✅ Yes' if is_super_admin else '❌ No'}
 👤 *Admin Username:* `{admin_uname}`
 🖥️ *Server IP:* `{vps_ip}`
-🌐 *Domain:* `{domain}`
-📡 *NS Domain:* `{ns_domain}`
-🔑 *Public Key:* `{pubkey}`
+🌐 *Domain:* {get_evt_config().get('DOMAIN', 'Not Set')}
+📡 *NS Domain:* {get_evt_config().get('NS_DOMAIN', 'Not Set')}
+🔑 *Public Key:* {get_slowdns_pubkey()}
 
 📈 *Your Statistics*
 ━━━━━━━━━━━━━━━
@@ -841,18 +633,7 @@ def check_telegram_updates():
                                     limit = 1
                                 
                                 admin_uname = get_tgid_admin_username(user_id)
-                                license_info = get_license_info_from_github_by_tgid(user_id)
-                                
-                                if license_info.get('status') != 'valid':
-                                    send_telegram_message(chat_id, "❌ You don't have a valid VPS license!")
-                                    if offset is None or update_id >= offset:
-                                        offset = update_id + 1
-                                        with open(OFFSET_FILE, "w") as f:
-                                            f.write(str(offset))
-                                    continue
-                                
-                                admin_username_from_license = license_info.get('admin_username', admin_uname)
-                                vps_ip = license_info.get('vps_ip')
+                                vps_ip = get_vps_ip()
                                 
                                 all_keys = load_keys(None)
                                 existing = False
@@ -877,7 +658,7 @@ def check_telegram_updates():
                                 if is_super_admin:
                                     save_admin = "default"
                                 else:
-                                    save_admin = admin_username_from_license
+                                    save_admin = admin_uname
                                 
                                 keys = load_keys(save_admin)
                                 keys[key] = {
@@ -894,9 +675,9 @@ def check_telegram_updates():
                                 save_keys(keys, save_admin)
                                 sync_user_to_system(username, password, expiry, limit)
                                 
-                                domain = license_info.get('domain', 'Not Set')
-                                ns_domain = license_info.get('ns_domain', 'Not Set')
-                                pubkey = license_info.get('pubkey', get_slowdns_pubkey())
+                                domain = get_evt_config().get('DOMAIN', 'Not Set')
+                                ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
+                                pubkey = get_slowdns_pubkey()
                                 
                                 msg = f"""✅ *SSH Account Created!*
 🔑 Key: `{key}`
@@ -971,10 +752,8 @@ def check_telegram_updates():
                             pubkey = get_slowdns_pubkey()
                             creator = user_data.get('created_by') or 'Unknown'
                             vps_ip = user_data.get('vps_ip', 'Unknown')
-                            
-                            license_info = get_license_info_from_github_by_tgid(user_data.get('telegram_id'))
-                            domain = license_info.get('domain', 'Not Set')
-                            ns_domain = license_info.get('ns_domain', 'Not Set')
+                            domain = get_evt_config().get('DOMAIN', 'Not Set')
+                            ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                             
                             msg = f"""🔐 *User Information*
 🔑 Key: `{user_key}`
@@ -1090,7 +869,6 @@ def check_telegram_updates():
                         else:
                             send_telegram_message(chat_id, "❌ Unknown command. Type /start for help.")
                     
-                    # Update offset AFTER processing each update
                     if offset is None or update_id >= offset:
                         offset = update_id + 1
                         with open(OFFSET_FILE, "w") as f:
@@ -1141,16 +919,12 @@ def auto_limit_check():
                             if username_to_kill:
                                 try:
                                     subprocess.run(["pkill", "-9", "-u", username_to_kill], capture_output=True)
-                                    subprocess.run(f"ps aux | grep -w '{username_to_kill}' | grep -v grep | awk '{{print $2}}' | xargs -r kill -9", shell=True, capture_output=True)
                                 except:
                                     pass
         except Exception as e:
             print(f"Auto-limit check error: {e}")
         time.sleep(3)
-                
-# ============================================
-# LOGIN HTML
-# ============================================
+
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1330,7 +1104,6 @@ LOGIN_HTML = """
             }
         }
         
-        // Detect VPS IP
         fetch('https://api.ipify.org?format=json')
             .then(res => res.json())
             .then(data => {
@@ -1340,7 +1113,6 @@ LOGIN_HTML = """
                 document.getElementById('detectedIp').innerHTML = 'Cannot detect';
             });
         
-        // Listen for license key input
         const licenseInput = document.getElementById('license_key');
         if (licenseInput) {
             licenseInput.addEventListener('input', function() {
@@ -1353,13 +1125,11 @@ LOGIN_HTML = """
                 }
             });
             
-            // Check on page load if there's a saved value
             if (licenseInput.value.trim().length > 5) {
                 updateSessionDisplay(licenseInput.value.trim());
             }
         }
         
-        // LocalStorage Remember Me
         const loginForm = document.getElementById('loginForm');
         const userField = document.getElementById('admin_username');
         const passField = document.getElementById('admin_pass');
@@ -1398,7 +1168,6 @@ LOGIN_HTML = """
             }
         });
         
-        // Auto-refresh session count every 3 seconds
         setInterval(function() {
             const key = keyField ? keyField.value.trim() : '';
             if (key.length > 5) {
@@ -1410,9 +1179,6 @@ LOGIN_HTML = """
 </html>
 """
 
-# ============================================
-# DASHBOARD HTML
-# ============================================
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1652,9 +1418,6 @@ DASHBOARD_HTML = """
 </html>
 """
 
-# ============================================
-# FLASK ROUTES
-# ============================================
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -2093,20 +1856,6 @@ def api_online_status():
         'session_valid': (active_session_id in all_sessions if active_session_id else True)
     })
 
-# ============================================
-# SYSTEM DEPENDENCIES INSTALLATION
-# ============================================
-def loading_animation(stop_event, message):
-    chars = ["▖", "▘", "▝", "▗"]
-    i = 0
-    while not stop_event.is_set():
-        sys.stdout.write(f"\r[⏳] {message} {chars[i % len(chars)]} ")
-        sys.stdout.flush()
-        time.sleep(0.2)
-        i += 1
-    sys.stdout.write("\r" + " " * (len(message) + 10) + "\r")
-    sys.stdout.flush()
-
 def install_system_dependencies():
     packages = ["python3-pip", "net-tools", "ssh", "dropbear", "stunnel4", "openvpn", "squid", "curl", "wget"]
     
@@ -2161,9 +1910,17 @@ def install_system_dependencies():
         except Exception as e:
             print(f"\n[❌] Error during setup: {e}")
 
-# ============================================
-# MAIN EXECUTION
-# ============================================
+def loading_animation(stop_event, message):
+    chars = ["▖", "▘", "▝", "▗"]
+    i = 0
+    while not stop_event.is_set():
+        sys.stdout.write(f"\r[⏳] {message} {chars[i % len(chars)]} ")
+        sys.stdout.flush()
+        time.sleep(0.2)
+        i += 1
+    sys.stdout.write("\r" + " " * (len(message) + 10) + "\r")
+    sys.stdout.flush()
+
 if __name__ == '__main__':
     import io
     install_system_dependencies()
