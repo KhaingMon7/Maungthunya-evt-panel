@@ -1166,11 +1166,3 @@ while true; do
         *) sleep 1 ;;
     esac
 done
-
-# ============================================
-# CREATE 'menu' COMMAND FOR QUICK ACCESS
-# ============================================
-if ! grep -q 'alias menu=' ~/.bashrc 2>/dev/null; then
-    echo 'alias menu="bash /usr/local/bin/evtbash"' >> ~/.bashrc
-    echo -e "${GREEN}[✅] 'menu' command created! Type 'menu' to open dashboard${NC}"
-fi
