@@ -607,6 +607,7 @@ setup_ws_proxy() {
     read -p " Enter Port (e.g., 80, 8080, 2052): " p_port
     [[ -z "$p_port" ]] && return
     fuser -k $p_port/tcp &> /dev/null
+    
     cat <<EOF > /usr/local/bin/proxy_$p_port.py
 import socket, threading, select
 def forward(source, destination):
@@ -642,8 +643,30 @@ def main():
 if __name__ == '__main__': main()
 EOF
     chmod +x /usr/local/bin/proxy_$p_port.py
-    screen -dmS "proxy_$p_port" python3 /usr/local/bin/proxy_$p_port.py
-    echo -e "${GREEN}Port $p_port opened successfully!${NC}"; sleep 2
+    
+    # Create systemd service for auto-start on reboot
+    cat > /etc/systemd/system/proxy_$p_port.service << EOF
+[Unit]
+Description=WebSocket Proxy on port $p_port
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/proxy_$p_port.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable proxy_$p_port.service
+    systemctl start proxy_$p_port.service
+    
+    echo -e "${GREEN}✅ Port $p_port opened and will survive reboot!${NC}"
+    sleep 2
 }
 
 gerenciar_proxy() {
