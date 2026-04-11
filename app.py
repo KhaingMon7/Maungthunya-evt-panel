@@ -1255,7 +1255,7 @@ DASHBOARD_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function updateLiveStatus() {
-            fetch('/api/online_status')
+            fetch('/api/online_status', { credentials: 'include' })
                 .then(response => response.json())
                 .then(data => {
                     const onlineCountElement = document.getElementById('online-count');
@@ -1304,7 +1304,7 @@ DASHBOARD_HTML = """
         function togglePass(id, p) { let span = document.getElementById('pass-' + id); let icon = document.getElementById('icon-' + id); if(span.innerText === '••••••••') { span.innerText = p; icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); } else { span.innerText = '••••••••'; icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); } }
         function copyToClipboard(elementId) { const element = document.getElementById(elementId); const text = element.innerText; if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => { const icon = event.target; const originalClass = icon.className; icon.className = 'fas fa-check copy-icon'; icon.style.color = '#28a745'; setTimeout(() => { icon.className = originalClass; icon.style.color = ''; }, 1500); }).catch(err => { fallbackCopy(text); }); } else { fallbackCopy(text); } }
         function fallbackCopy(text) { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); try { document.execCommand('copy'); const icon = event.target; const originalClass = icon.className; icon.className = 'fas fa-check copy-icon'; icon.style.color = '#28a745'; setTimeout(() => { icon.className = originalClass; icon.style.color = ''; }, 1500); } catch (err) {} document.body.removeChild(textarea); }
-        setInterval(function() { fetch('/api/online_status').catch(() => {}); }, 30000);
+        setInterval(function() { fetch('/api/online_status', { credentials: 'include' }).catch(() => {}); }, 30000);
     </script>
 </body>
 </html>
