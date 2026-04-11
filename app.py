@@ -404,15 +404,21 @@ def get_user_online_status(username):
         dropbear_pids = subprocess.getoutput(f"pgrep -u {username} dropbear 2>/dev/null").split()
         if dropbear_pids and dropbear_pids[0] != "":
             online_num += len(dropbear_pids)
+        who_output = subprocess.getoutput(f"who | grep {username} 2>/dev/null").strip()
+        if who_output:
+            who_count = len(who_output.split('\n'))
+            online_num = max(online_num, who_count)
         return online_num > 0, online_num
     except:
         return False, 0
 
 def get_all_users_online_status():
     try:
-        ssh_output = subprocess.getoutput("ps aux | grep -E 'sshd|dropbear' | grep -v grep | awk '{print $1}'").strip()
-        online_users_list = ssh_output.split('\n') if ssh_output else []
-        return set(online_users_list)
+        who_output = subprocess.getoutput("who | awk '{print $1}'").strip()
+        online_users_list = who_output.split('\n') if who_output else []
+        dropbear_output = subprocess.getoutput("ps aux | grep dropbear | grep -v grep | awk '{print $1}'").strip()
+        dropbear_users = dropbear_output.split('\n') if dropbear_output else []
+        return set(online_users_list + dropbear_users)
     except:
         return set()
 
