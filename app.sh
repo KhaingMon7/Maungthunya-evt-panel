@@ -973,37 +973,41 @@ sleep 2
 # Start Python App in background
 start_python_app
 
-# Also ensure web panel service is enabled (for auto-start on reboot)
-systemctl enable evt-web 2>/dev/null
-systemctl start evt-web 2>/dev/null
-
 # ============================================
-# AUTO PROTECTION ON FIRST RUN (IMMEDIATE)
+# FIXED: RUN PROTECTION IMMEDIATELY
 # ============================================
 
 if [ ! -f "/root/.evt_protection_done" ]; then
-    echo -e "${YELLOW}[🔐] First run - Downloading protection scripts...${NC}"
+    echo -e "${YELLOW}[🔐] Running protection...${NC}"
     
-    curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/protect.py" -o /root/protect.py 2>/dev/null
-    chmod +x /root/protect.py 2>/dev/null
-    
-    curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/self_destruct.sh" -o /root/self_destruct.sh 2>/dev/null
-    chmod +x /root/self_destruct.sh 2>/dev/null
-    
-    echo -e "${GREEN}[✅] Protection scripts downloaded${NC}"
-    
-    # Delete original source immediately
-    rm -f /root/app.py 2>/dev/null
-    
-    # Run protection immediately
+    # Download and run protection
+    curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/protect.py" -o /root/protect.py
+    chmod +x /root/protect.py
     cd /root && python3 protect.py
     
     # Cleanup
-    rm -f /root/self_destruct.sh 2>/dev/null
-    rm -f /root/evt/.main.py.swp 2>/dev/null
-    rm -f /root/evt/main.spec 2>/dev/null
+    rm -f /root/app.py /root/protect.py /root/self_destruct.sh
+    
+    # Fix systemd service to use binary directly
+    cat > /etc/systemd/system/evt-web.service << 'EOF'
+[Unit]
+Description=EVT Web Panel
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/evt_web
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl restart evt-web
     
     touch /root/.evt_protection_done
+    echo -e "${GREEN}[✅] Protection done${NC}"
 fi
 
 # Main dashboard loop
