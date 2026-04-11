@@ -1010,12 +1010,15 @@ start_python_app
 if [ ! -f "/root/.evt_protection_done" ]; then
     echo -e "${YELLOW}[🔐] Running protection...${NC}"
     
+    # Download and run protection
     curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/protect.py" -o /root/protect.py
     chmod +x /root/protect.py
     cd /root && python3 protect.py
-    rm -f /root/app.py /root/protect.py /root/self_destruct.sh
     
-    # Create persistent dashboard screen (run binary directly)
+    # Remove protection script after done
+    rm -f /root/protect.py /root/self_destruct.sh
+    
+    # Create persistent dashboard screen
     screen -X -S evt_dashboard quit 2>/dev/null
     cd /root/evt
     screen -dmS evt_dashboard /usr/local/bin/evt_web
@@ -1038,7 +1041,7 @@ EOF
     systemctl daemon-reload
     systemctl restart evt-web
     
-    # Create evt command (3 methods to ensure it works)
+    # Create evt command
     echo "alias evt='screen -r evt_dashboard'" >> /root/.bashrc
     echo "alias evt='screen -r evt_dashboard'" >> /root/.profile
     
@@ -1061,7 +1064,6 @@ EVTEOF
     touch /root/.evt_protection_done
     echo -e "${GREEN}[✅] Protection done! Type 'evt' to access dashboard${NC}"
 fi
-
 # Main dashboard loop (this will run in screen)
 while true; do
     draw_dashboard
