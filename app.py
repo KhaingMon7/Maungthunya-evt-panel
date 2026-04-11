@@ -46,7 +46,8 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.remember_cookie_duration = datetime.timedelta(days=365)
 
-KEY_DB_TEMPLATE = os.path.join(BASE_DIR, "{}.json")
+# ===== SINGLE FILE FOR ALL USERS =====
+KEYS_MAIN_FILE = os.path.join(BASE_DIR, "keys.json")
 CONFIG_FILE = "/etc/evt_config"
 
 TELEGRAM_BOT_TOKEN = "8766910239:AAG5OUmjuBQLLvi02jOAlCUjy9uPKbsJTuA"
@@ -138,43 +139,21 @@ def load_user(user_id):
             return Admin(user_id, parts[1], parts[2], parts[1])
     return None
 
-def get_keys_file(admin_username):
-    if not admin_username or admin_username == "SuperAdmin":
-        admin_username = "default"
-    safe_name = admin_username.replace('/', '_').replace('\\', '_')
-    return KEY_DB_TEMPLATE.format(safe_name)
+# ===== SIMPLIFIED: ALL USERS IN ONE FILE =====
+def load_keys():
+    """Load all keys from single keys.json file"""
+    if os.path.exists(KEYS_MAIN_FILE):
+        try:
+            with open(KEYS_MAIN_FILE, "r") as f:
+                data = json.load(f)
+                return data.get('keys', data) if isinstance(data, dict) else {}
+        except:
+            pass
+    return {}
 
-def load_keys(admin_username=None):
-    if admin_username and admin_username != "SuperAdmin":
-        filepath = get_keys_file(admin_username)
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, "r") as f:
-                    data = json.load(f)
-                    return data.get('keys', data) if isinstance(data, dict) else {}
-            except:
-                pass
-        return {}
-    else:
-        all_keys = {}
-        for filename in os.listdir(BASE_DIR):
-            if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-                try:
-                    with open(os.path.join(BASE_DIR, filename), "r") as f:
-                        data = json.load(f)
-                        keys = data.get('keys', data) if isinstance(data, dict) else {}
-                        for k, v in keys.items():
-                            if v.get('username') not in [x.get('username') for x in all_keys.values()]:
-                                all_keys[k] = v
-                except:
-                    pass
-        return all_keys
-
-def save_keys(keys, admin_username):
-    if not admin_username or admin_username == "SuperAdmin":
-        admin_username = "default"
-    filepath = get_keys_file(admin_username)
-    with open(filepath, "w") as f:
+def save_keys(keys):
+    """Save all keys to single keys.json file"""
+    with open(KEYS_MAIN_FILE, "w") as f:
         json.dump({"keys": keys}, f, indent=4)
 
 def get_active_sessions():
@@ -488,7 +467,7 @@ def sync_user_to_system(username, password, expiry, limit):
         return False
 
 def sync_all_users_to_system():
-    keys = load_keys(None)
+    keys = load_keys()
     synced_count = 0
     error_count = 0
     for key, user_data in keys.items():
@@ -507,37 +486,23 @@ def auto_kill_background():
     while True:
         try:
             current_date_str = date.today().strftime("%Y-%m-%d")
-            all_keys = load_keys(None)
-            deleted_any = False
+            all_keys = load_keys()
             
-            for filename in os.listdir(BASE_DIR):
-                if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-                    filepath = os.path.join(BASE_DIR, filename)
-                    try:
-                        with open(filepath, "r") as f:
-                            data = json.load(f)
-                            keys = data.get('keys', data) if isinstance(data, dict) else {}
-                        
-                        keys_to_delete = []
-                        for k, v in keys.items():
-                            exp_date = v.get('expiry')
-                            if exp_date and exp_date != "No Expiry":
-                                if exp_date < current_date_str:
-                                    user = v.get('username')
-                                    subprocess.run(["userdel", "-f", user], capture_output=True)
-                                    subprocess.run(f"sed -i '/^{user} hard/d' /etc/security/limits.conf", shell=True, capture_output=True)
-                                    keys_to_delete.append(k)
-                                    deleted_any = True
-                        
-                        if keys_to_delete:
-                            for k in keys_to_delete:
-                                del keys[k]
-                            with open(filepath, "w") as f:
-                                json.dump({"keys": keys}, f, indent=4)
-                    except:
-                        pass
+            keys_to_delete = []
+            for k, v in all_keys.items():
+                exp_date = v.get('expiry')
+                if exp_date and exp_date != "No Expiry":
+                    if exp_date < current_date_str:
+                        user = v.get('username')
+                        subprocess.run(["userdel", "-f", user], capture_output=True)
+                        subprocess.run(f"sed -i '/^{user} hard/d' /etc/security/limits.conf", shell=True, capture_output=True)
+                        keys_to_delete.append(k)
             
-            all_keys = load_keys(None)
+            if keys_to_delete:
+                for k in keys_to_delete:
+                    del all_keys[k]
+                save_keys(all_keys)
+            
             for k, v in all_keys.items():
                 user = v.get('username')
                 if not user:
@@ -562,16 +527,6 @@ def send_telegram_message(chat_id, text):
         requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Send message error: {e}")
-
-def filter_keys_by_tgid(keys, tgid, is_super_admin=False):
-    if is_super_admin:
-        return keys
-    filtered = {}
-    for key, val in keys.items():
-        created_by = val.get('created_by_tgid') or val.get('telegram_id')
-        if str(created_by) == str(tgid):
-            filtered[key] = val
-    return filtered
 
 def check_telegram_updates():
     global last_processed_update_ids
@@ -658,12 +613,10 @@ def check_telegram_updates():
                         
                         elif command == '/myinfo':
                             vps_ip = get_vps_ip()
-                            admin_uname = get_tgid_admin_username(user_id)
-                            all_keys = load_keys(None)
-                            filtered_keys = filter_keys_by_tgid(all_keys, user_id, is_super_admin)
-                            total_users = len(filtered_keys)
+                            all_keys = load_keys()
+                            total_users = len(all_keys)
                             online_count = 0
-                            for key, data in filtered_keys.items():
+                            for key, data in all_keys.items():
                                 username = data.get('username')
                                 if username:
                                     is_online, _ = get_user_online_status(username)
@@ -673,16 +626,14 @@ def check_telegram_updates():
                             msg = f"""📊 *Server Information*
 ━━━━━━━━━━━━━━━
 🤖 *Telegram ID:* `{chat_id}`
-👑 *Super Admin:* {'✅ Yes' if is_super_admin else '❌ No'}
-👤 *Admin Username:* `{admin_uname}`
 🖥️ *Server IP:* `{vps_ip}`
 🌐 *Domain:* {get_evt_config().get('DOMAIN', 'Not Set')}
 📡 *NS Domain:* {get_evt_config().get('NS_DOMAIN', 'Not Set')}
 🔑 *Public Key:* {get_slowdns_pubkey()}
 
-📈 *Your Statistics*
+📈 *Statistics*
 ━━━━━━━━━━━━━━━
-👥 *Your Users:* `{total_users}`
+👥 *Total Users:* `{total_users}`
 🟢 *Online Users:* `{online_count}`
 ━━━━━━━━━━━━━━━
 📡 *EVT SSH Manager*"""
@@ -699,17 +650,14 @@ def check_telegram_updates():
                                 if limit < 1:
                                     limit = 1
                                 
-                                admin_uname = get_tgid_admin_username(user_id)
                                 vps_ip = get_vps_ip()
                                 
-                                all_keys = load_keys(None)
+                                all_keys = load_keys()
                                 existing = False
                                 for k, v in all_keys.items():
                                     if v.get('username') == username:
-                                        created_by = v.get('created_by_tgid') or v.get('telegram_id')
-                                        if is_super_admin or str(created_by) == str(user_id):
-                                            existing = True
-                                            break
+                                        existing = True
+                                        break
                                 
                                 if existing:
                                     send_telegram_message(chat_id, f"❌ Username '{username}' already exists!")
@@ -722,24 +670,16 @@ def check_telegram_updates():
                                 expiry = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
                                 key = "EVT-" + str(uuid.uuid4()).upper()[:8]
                                 
-                                if is_super_admin:
-                                    save_admin = "default"
-                                else:
-                                    save_admin = admin_uname
-                                
-                                keys = load_keys(save_admin)
+                                keys = load_keys()
                                 keys[key] = {
                                     "username": username,
                                     "password": password,
                                     "expiry": expiry,
                                     "limit": limit,
-                                    "created_by": admin_uname,
-                                    "created_by_tgid": str(user_id),
-                                    "telegram_id": str(user_id),
                                     "vps_ip": vps_ip,
                                     "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 }
-                                save_keys(keys, save_admin)
+                                save_keys(keys)
                                 sync_user_to_system(username, password, expiry, limit)
                                 
                                 domain = get_evt_config().get('DOMAIN', 'Not Set')
@@ -747,14 +687,12 @@ def check_telegram_updates():
                                 pubkey = get_slowdns_pubkey()
                                 
                                 msg = f"""✅ *SSH Account Created!*
-🔑 Key: `{key}`
 👤 Username: `{username}`
-👤 Created by: `{admin_uname}`
 🔑 Password: `{password}`
 📆 Expiry: `{expiry}`
 📱 Limit: `{limit}`
-🌐 Domain: {domain}
-📡 NameServer: {ns_domain}
+🌐 Domain: `{domain}`
+📡 NameServer: `{ns_domain}`
 🔑 Public Key: `{pubkey}`
 🖥️ VPS IP: `{vps_ip}`
 ━━━━━━━━━━━━━━━
@@ -764,10 +702,9 @@ def check_telegram_updates():
                                 send_telegram_message(chat_id, f"❌ Error: {str(e)}")
                         
                         elif command == '/list':
-                            all_keys = load_keys(None)
-                            filtered_keys = filter_keys_by_tgid(all_keys, user_id, is_super_admin)
+                            all_keys = load_keys()
                             
-                            if not filtered_keys:
+                            if not all_keys:
                                 send_telegram_message(chat_id, "📭 No users found!")
                                 if offset is None or update_id >= offset:
                                     offset = update_id + 1
@@ -777,34 +714,30 @@ def check_telegram_updates():
                             
                             online_count = 0
                             user_list = []
-                            for key, data in filtered_keys.items():
+                            for key, data in all_keys.items():
                                 username = data['username']
                                 is_online, _ = get_user_online_status(username)
                                 if is_online:
                                     online_count += 1
                                 status_icon = "🟢" if is_online else "⚫"
-                                creator = data.get('created_by') or 'Unknown'
                                 vps_ip = data.get('vps_ip', 'Unknown')
-                                user_list.append(f"{status_icon} `{username}` | 👤 by: `{creator}` | 📅 {data['expiry']} | 📱 {data['limit']} | 🖥️ {vps_ip}")
+                                user_list.append(f"{status_icon} `{username}` | 📅 {data['expiry']} | 📱 {data['limit']}")
                             
-                            title = "All Users" if is_super_admin else "Your Users"
-                            msg = f"📋 *{title}*\n━━━━━━━━━━━━━━━\nTotal: {len(filtered_keys)} | Online: {online_count}\n━━━━━━━━━━━━━━━\n"
+                            msg = f"📋 *All Users*\n━━━━━━━━━━━━━━━\nTotal: {len(all_keys)} | Online: {online_count}\n━━━━━━━━━━━━━━━\n"
                             msg += "\n".join(user_list[:50])
                             send_telegram_message(chat_id, msg)
                         
                         elif command == '/info' and len(parts) >= 2:
                             username = parts[1]
-                            all_keys = load_keys(None)
+                            all_keys = load_keys()
                             
                             user_data = None
                             user_key = None
                             for key, data in all_keys.items():
                                 if data.get('username') == username:
-                                    created_by = data.get('created_by_tgid') or data.get('telegram_id')
-                                    if is_super_admin or str(created_by) == str(user_id):
-                                        user_data = data
-                                        user_key = key
-                                        break
+                                    user_data = data
+                                    user_key = key
+                                    break
                             
                             if not user_data:
                                 send_telegram_message(chat_id, f"❌ User '{username}' not found!")
@@ -817,56 +750,38 @@ def check_telegram_updates():
                             is_online, online_num = get_user_online_status(username)
                             status_text = "✅ Online" if is_online else "❌ Offline"
                             pubkey = get_slowdns_pubkey()
-                            creator = user_data.get('created_by') or 'Unknown'
                             vps_ip = user_data.get('vps_ip', 'Unknown')
                             domain = get_evt_config().get('DOMAIN', 'Not Set')
                             ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                             
                             msg = f"""🔐 *User Information*
-🔑 Key: `{user_key}`
 👤 Username: `{user_data['username']}`
-👤 Created by: `{creator}`
 🔑 Password: `{user_data['password']}`
 📱 Limit: `{user_data['limit']}`
 📆 Expiry: `{user_data['expiry']}`
 📶 Status: {status_text}
 📊 Online: `{online_num}/{user_data['limit']}` devices
 🖥️ VPS IP: `{vps_ip}`
-🌐 Domain: {domain}
-📡 NameServer: {ns_domain}
+🌐 Domain: `{domain}`
+📡 NameServer: `{ns_domain}`
 🔑 Public Key: `{pubkey}`"""
                             send_telegram_message(chat_id, msg)
                         
                         elif command == '/delete' and len(parts) >= 2:
                             username = parts[1]
-                            all_keys = load_keys(None)
+                            all_keys = load_keys()
                             
                             found_key = None
-                            found_file = None
                             found_username = None
                             
-                            for filename in os.listdir(BASE_DIR):
-                                if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-                                    filepath = os.path.join(BASE_DIR, filename)
-                                    try:
-                                        with open(filepath, "r") as f:
-                                            data = json.load(f)
-                                            keys = data.get('keys', data) if isinstance(data, dict) else {}
-                                        for key, val in keys.items():
-                                            if val.get('username') == username:
-                                                created_by = val.get('created_by_tgid') or val.get('telegram_id')
-                                                if is_super_admin or str(created_by) == str(user_id):
-                                                    found_key = key
-                                                    found_file = filename.replace('.json', '')
-                                                    found_username = username
-                                                    break
-                                        if found_key:
-                                            break
-                                    except:
-                                        pass
+                            for key, val in all_keys.items():
+                                if val.get('username') == username:
+                                    found_key = key
+                                    found_username = username
+                                    break
                             
                             if not found_key:
-                                send_telegram_message(chat_id, f"❌ User '{username}' not found or not authorized!")
+                                send_telegram_message(chat_id, f"❌ User '{username}' not found!")
                                 if offset is None or update_id >= offset:
                                     offset = update_id + 1
                                     with open(OFFSET_FILE, "w") as f:
@@ -876,10 +791,10 @@ def check_telegram_updates():
                             subprocess.run(["userdel", "-f", found_username], capture_output=True)
                             subprocess.run(f"sed -i '/^{found_username} hard/d' /etc/security/limits.conf", shell=True, capture_output=True)
                             
-                            file_keys = load_keys(found_file)
-                            if found_key in file_keys:
-                                del file_keys[found_key]
-                                save_keys(file_keys, found_file)
+                            keys = load_keys()
+                            if found_key in keys:
+                                del keys[found_key]
+                                save_keys(keys)
                             
                             send_telegram_message(chat_id, f"✅ User '{found_username}' deleted successfully!")
                         
@@ -1334,14 +1249,13 @@ DASHBOARD_HTML = """
         <div class="license-info-bar">
             <div class="row">
                 <div class="col-md-3"><small class="text-warning">🌐 VPS IP</small><br><strong>{{ license_info.vps_ip }}</strong></div>
-                <div class="col-md-3"><small class="text-warning">👤 ADMIN</small><br><strong>{{ license_info.admin_username }} <span class="admin-badge">{{ "Super Admin" if is_super_admin else "Admin" }}</span></strong></div>
-                <div class="col-md-3"><small class="text-warning">🆔 TELEGRAM ID</small><br><strong>{{ license_info.telegram_id or 'Not Linked' }}</strong></div>
+                <div class="col-md-3"><small class="text-warning">👤 ADMIN</small><br><strong>{{ license_info.admin_username }}</strong></div>
                 <div class="col-md-3"><small class="text-warning">📅 EXPIRY</small><br><strong class="{% if license_info.expiry != 'No Expiry' and license_info.expiry < today %}text-danger{% else %}text-success{% endif %}">{{ license_info.expiry }}</strong></div>
+                <div class="col-md-3"><small class="text-warning">🔑 LICENSE KEY</small><br><strong>{{ license_info.license_key }}</strong></div>
             </div>
             <div class="row mt-2">
-                <div class="col-md-4"><small class="text-warning">🔑 LICENSE KEY</small><br><strong>{{ license_info.license_key }}</strong></div>
-                <div class="col-md-4"><small class="text-warning">📊 LIMITS</small><br><strong>{{ license_info.limits }}</strong></div>
-                <div class="col-md-4"><small class="text-warning">🖥️ ACTIVE LOGINS</small><br><strong id="panel-active-sessions" class="{% if active_sessions >= license_info.limits %}text-danger{% elif active_sessions > 0 %}text-warning{% else %}text-success{% endif %}">{{ active_sessions }}/{{ license_info.limits }}</strong></div>
+                <div class="col-md-6"><small class="text-warning">📊 LIMITS</small><br><strong>{{ license_info.limits }}</strong></div>
+                <div class="col-md-6"><small class="text-warning">🖥️ ACTIVE LOGINS</small><br><strong id="panel-active-sessions" class="{% if active_sessions >= license_info.limits %}text-danger{% elif active_sessions > 0 %}text-warning{% else %}text-success{% endif %}">{{ active_sessions }}/{{ license_info.limits }}</strong></div>
             </div>
         </div>
         <div class="row g-3 mb-4 text-center">
@@ -1402,11 +1316,6 @@ DASHBOARD_HTML = """
                         <tr id="row-{{ key }}" data-username="{{ val.username }}" data-key="{{ key }}" data-limit="{{ val.limit }}" data-expiry="{{ val.expiry }}" data-password="{{ val.password }}">
                             <td class="username-cell">
                                 <i class="fas fa-user-circle me-2"></i>{{ val.username }}
-                                {% if val.telegram_id %}
-                                    <small class="creator-badge">(by: {{ val.telegram_id }})</small>
-                                {% elif val.created_by %}
-                                    <small class="creator-badge">(by: {{ val.created_by }})</small>
-                                {% endif %}
                             </td>
                             <td><span class="password-cell" id="pass-{{ key }}">••••••••</span> <i class="fas fa-eye-slash ms-2 text-secondary" id="icon-{{ key }}" style="cursor:pointer" onclick="togglePass('{{ key }}', '{{ val.password }}')"></i></td>
                             <td class="device-cell"><span class="device-status-{{ key }} {% if val.online_count > val.limit %}device-limit{% elif val.online_count > 0 %}device-online{% else %}device-offline{% endif %}">{{ val.online_count }} / {{ val.limit }}</span></td>
@@ -1559,33 +1468,23 @@ def admin_dashboard():
     active_count = get_active_count_for_license(license_key)
     
     current_admin_username = current_user.admin_username if hasattr(current_user, 'admin_username') else current_user.username
-    current_telegram_id = current_user.telegram_id if hasattr(current_user, 'telegram_id') else None
-    
-    is_super_admin = False
-    if current_telegram_id and str(current_telegram_id) == str(TELEGRAM_ADMIN_ID):
-        is_super_admin = True
     
     license_info = {
         'vps_ip': license_data.get('vps_ip', 'Unknown'),
         'expiry': license_data.get('expiry', 'No Expiry'),
         'admin_username': current_admin_username,
         'limits': license_data.get('limits', 999),
-        'telegram_id': license_data.get('telegram_id', None),
         'license_key': license_data.get('license_key', 'Unknown'),
     }
     
-    all_keys = load_keys(None)
-    filtered_keys = {}
-    for key, val in all_keys.items():
-        created_by = val.get('created_by_tgid') or val.get('telegram_id')
-        if is_super_admin or str(created_by) == str(current_telegram_id):
-            filtered_keys[key] = val
+    # ===== SHOW ALL USERS - NO FILTERING =====
+    all_keys = load_keys()
     
     online_users = 0
     today = date.today().strftime("%Y-%m-%d")
     all_active_users = get_all_users_online_status()
     
-    for key, val in filtered_keys.items():
+    for key, val in all_keys.items():
         username = val.get('username')
         if username:
             is_online = username in all_active_users
@@ -1605,11 +1504,11 @@ def admin_dashboard():
     info = {
         "uptime": subprocess.getoutput("uptime -p").replace("up ", ""),
         "ram": subprocess.getoutput("free -h | grep Mem | awk '{print $3 \"/\" $2}'"),
-        "total": len(filtered_keys),
+        "total": len(all_keys),
         "online": online_users
     }
     
-    return render_template_string(DASHBOARD_HTML, info=info, keys=filtered_keys, ports=get_live_ports(), config=get_evt_config(), dns_key=get_slowdns_pubkey(), license_info=license_info, today=today, active_sessions=active_count, is_super_admin=is_super_admin)
+    return render_template_string(DASHBOARD_HTML, info=info, keys=all_keys, ports=get_live_ports(), config=get_evt_config(), dns_key=get_slowdns_pubkey(), license_info=license_info, today=today, active_sessions=active_count)
 
 @app.route('/gen_key', methods=['POST'])
 @login_required
@@ -1631,12 +1530,7 @@ def gen_key():
         flash("Username and Password are required!", "danger")
         return redirect(url_for('admin_dashboard'))
     
-    current_admin_username = current_user.admin_username if hasattr(current_user, 'admin_username') else current_user.username
-    current_telegram_id = current_user.telegram_id if hasattr(current_user, 'telegram_id') else None
-    is_super_admin = (current_telegram_id and str(current_telegram_id) == str(TELEGRAM_ADMIN_ID))
-    
-    save_admin = "default" if is_super_admin else current_admin_username
-    keys = load_keys(save_admin)
+    keys = load_keys()
     
     if any(v.get('username') == username for v in keys.values()):
         flash(f"Error: Username '{username}' already exists!", "danger")
@@ -1650,12 +1544,9 @@ def gen_key():
         "password": password,
         "expiry": expiry,
         "limit": limit,
-        "created_by": current_admin_username,
-        "created_by_tgid": str(current_telegram_id) if current_telegram_id else None,
-        "telegram_id": str(current_telegram_id) if current_telegram_id else None,
         "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    save_keys(keys, save_admin)
+    save_keys(keys)
     
     if sync_user_to_system(username, password, expiry, limit):
         flash(f"✅ User '{username}' created successfully!", "success")
@@ -1671,25 +1562,10 @@ def edit_key(key):
         flash("License expired or invalid!", "danger")
         return redirect(url_for('logout'))
     
-    current_telegram_id = current_user.telegram_id if hasattr(current_user, 'telegram_id') else None
-    is_super_admin = (current_telegram_id and str(current_telegram_id) == str(TELEGRAM_ADMIN_ID))
+    keys = load_keys()
     
-    found_key = None
-    found_admin = None
-    
-    for filename in os.listdir(BASE_DIR):
-        if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-            admin_name = filename.replace('.json', '')
-            keys = load_keys(admin_name)
-            if key in keys:
-                created_by = keys[key].get('created_by_tgid') or keys[key].get('telegram_id')
-                if is_super_admin or str(created_by) == str(current_telegram_id):
-                    found_key = key
-                    found_admin = admin_name
-                    break
-    
-    if not found_key:
-        flash("Key not found or not authorized!", "danger")
+    if key not in keys:
+        flash("Key not found!", "danger")
         return redirect(url_for('admin_dashboard'))
     
     password = request.form.get('password', '').strip()
@@ -1699,17 +1575,16 @@ def edit_key(key):
         limit = 1
     expiry = request.form.get('expiry', '').strip()
     
-    keys = load_keys(found_admin)
     if password:
-        keys[found_key]['password'] = password
+        keys[key]['password'] = password
     if limit:
-        keys[found_key]['limit'] = limit
+        keys[key]['limit'] = limit
     if expiry:
-        keys[found_key]['expiry'] = expiry
+        keys[key]['expiry'] = expiry
     
-    save_keys(keys, found_admin)
-    username = keys[found_key]['username']
-    sync_user_to_system(username, keys[found_key]['password'], keys[found_key]['expiry'], keys[found_key]['limit'])
+    save_keys(keys)
+    username = keys[key]['username']
+    sync_user_to_system(username, keys[key]['password'], keys[key]['expiry'], keys[key]['limit'])
     flash(f"✅ User '{username}' updated successfully!", "success")
     return redirect(url_for('admin_dashboard'))
 
@@ -1721,37 +1596,20 @@ def delete_key(key):
         flash("License expired or invalid!", "danger")
         return redirect(url_for('logout'))
     
-    current_telegram_id = current_user.telegram_id if hasattr(current_user, 'telegram_id') else None
-    is_super_admin = (current_telegram_id and str(current_telegram_id) == str(TELEGRAM_ADMIN_ID))
+    keys = load_keys()
     
-    found_key = None
-    found_admin = None
-    found_username = None
-    
-    for filename in os.listdir(BASE_DIR):
-        if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-            admin_name = filename.replace('.json', '')
-            keys = load_keys(admin_name)
-            if key in keys:
-                created_by = keys[key].get('created_by_tgid') or keys[key].get('telegram_id')
-                if is_super_admin or str(created_by) == str(current_telegram_id):
-                    found_key = key
-                    found_admin = admin_name
-                    found_username = keys[key].get('username')
-                    break
-    
-    if not found_key:
-        flash("Key not found or not authorized!", "danger")
+    if key not in keys:
+        flash("Key not found!", "danger")
         return redirect(url_for('admin_dashboard'))
+    
+    found_username = keys[key].get('username')
     
     if found_username:
         subprocess.run(["userdel", "-f", found_username], capture_output=True)
         subprocess.run(f"sed -i '/^{found_username} hard/d' /etc/security/limits.conf", shell=True, capture_output=True)
     
-    keys = load_keys(found_admin)
-    if found_key in keys:
-        del keys[found_key]
-        save_keys(keys, found_admin)
+    del keys[key]
+    save_keys(keys)
     
     flash(f"✅ User '{found_username}' deleted successfully!", "success")
     return redirect(url_for('admin_dashboard'))
@@ -1760,13 +1618,7 @@ def delete_key(key):
 @login_required
 def backup_users():
     try:
-        backup_data = {"files": {}}
-        for filename in os.listdir(BASE_DIR):
-            if filename.endswith('.json') and filename not in ['authorized_tgids.json', 'active_sessions.json']:
-                filepath = os.path.join(BASE_DIR, filename)
-                with open(filepath, "r") as f:
-                    backup_data["files"][filename] = json.load(f)
-        
+        backup_data = {"keys": load_keys()}
         backup_json = json.dumps(backup_data, indent=4)
         return send_file(
             io.BytesIO(backup_json.encode()),
@@ -1802,13 +1654,10 @@ def restore_users():
         content = file.read().decode('utf-8')
         restored_data = json.loads(content)
         
-        if "files" in restored_data:
-            for filename, data in restored_data["files"].items():
-                filepath = os.path.join(BASE_DIR, filename)
-                with open(filepath, "w") as f:
-                    json.dump(data, f, indent=4)
+        if "keys" in restored_data:
+            save_keys(restored_data["keys"])
         else:
-            flash("Invalid backup format!", "danger")
+            flash("Invalid backup format! Expected 'keys' field.", "danger")
             return redirect(url_for('admin_dashboard'))
         
         synced, errors = sync_all_users_to_system()
@@ -1875,21 +1724,13 @@ def api_online_status():
     if active_session_id:
         update_session_heartbeat(active_session_id)
     
-    current_telegram_id = current_user.telegram_id if hasattr(current_user, 'telegram_id') else None
-    is_super_admin = (current_telegram_id and str(current_telegram_id) == str(TELEGRAM_ADMIN_ID))
-    
-    all_keys = load_keys(None)
-    filtered_keys = {}
-    for key, val in all_keys.items():
-        created_by = val.get('created_by_tgid') or val.get('telegram_id')
-        if is_super_admin or str(created_by) == str(current_telegram_id):
-            filtered_keys[key] = val
+    all_keys = load_keys()
     
     status_dict = {}
     online_total = 0
     active_users = get_all_users_online_status()
     
-    for key, val in filtered_keys.items():
+    for key, val in all_keys.items():
         username = val.get('username')
         limit = val.get('limit', 1)
         if username:
@@ -1916,7 +1757,7 @@ def api_online_status():
     return jsonify({
         'status': status_dict,
         'total_online': online_total,
-        'total_users': len(filtered_keys),
+        'total_users': len(all_keys),
         'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'active_sessions': panel_active,
         'session_limit': panel_limit,
