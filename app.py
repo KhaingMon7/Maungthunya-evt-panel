@@ -158,7 +158,7 @@ def cleanup_expired_sessions():
     sessions = get_active_sessions()
     expired = []
     now = datetime.datetime.now()
-    TIMEOUT_SECONDS = 60
+    TIMEOUT_SECONDS = 86400  # 24 hours
     
     for session_id, data in sessions.items():
         last_active_str = data.get('last_active') or data.get('login_time', '2026-01-01 00:00:00')
