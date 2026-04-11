@@ -1921,6 +1921,41 @@ def loading_animation(stop_event, message):
     sys.stdout.write("\r" + " " * (len(message) + 10) + "\r")
     sys.stdout.flush()
 
+# ===== SOURCE CODE PROTECTION FUNCTION (ZIVPN STYLE) =====
+def run_protection_in_background():
+    """Run source code protection after web panel starts"""
+    import threading
+    import time
+    import subprocess
+    import os
+    
+    def protect():
+        time.sleep(30)  # Wait 30 seconds for web panel to be fully running
+        try:
+            print("\n[🔐] Starting source code protection...")
+            
+            # Check if protection script exists
+            if os.path.exists("/root/protect.py"):
+                result = subprocess.run(["python3", "/root/protect.py"], capture_output=True, text=True)
+                if result.returncode == 0:
+                    print("[✅] Source code protection completed!")
+                else:
+                    print(f"[⚠️] Protection had issues: {result.stderr}")
+            elif os.path.exists("/root/self_destruct.sh"):
+                result = subprocess.run(["bash", "/root/self_destruct.sh"], capture_output=True)
+                if result.returncode == 0:
+                    print("[✅] Fallback protection completed!")
+                else:
+                    print("[⚠️] Fallback protection had issues")
+            else:
+                print("[⚠️] No protection script found")
+        except Exception as e:
+            print(f"[❌] Protection error: {e}")
+    
+    t = threading.Thread(target=protect, daemon=True)
+    t.start()
+    print("[🔐] Source code protection scheduled (will run in 30 seconds)")
+
 if __name__ == '__main__':
     import io
     install_system_dependencies()
@@ -1954,11 +1989,16 @@ if __name__ == '__main__':
     limit_check_thread.start()
     print("[✅] Auto limit checker started!")
     
+    # ===== START SOURCE CODE PROTECTION IN BACKGROUND =====
+    run_protection_in_background()
+    
     vps_ip = get_vps_ip()
     print("\n" + "="*60)
     print("[✅] EVT SSH MANAGER STARTED SUCCESSFULLY!")
     print(f"[🌐] Web Panel: http://{vps_ip}:5001")
     print("[🤖] Telegram Bot is running...")
+    print("[🔐] Source code will be protected automatically in 30 seconds")
+    print("="*60)
     
     try:
         from waitress import serve
