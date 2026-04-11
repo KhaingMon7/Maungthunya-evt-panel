@@ -276,8 +276,75 @@ def check_license_from_github(target_username=None, target_license=None, target_
     if not current_ip:
         return False, "Cannot detect VPS IP address!", None
     
+    # Check for saved custom credentials
+    creds_file = "/root/.evt_panel_creds.json"
+    custom_creds = None
+    
+    if os.path.exists(creds_file):
+        try:
+            with open(creds_file, "r") as f:
+                custom_creds = json.load(f)
+        except:
+            pass
+    
+    # If custom credentials exist, use them
+    if custom_creds and custom_creds.get('admin_username'):
+        try:
+            response = requests.get(f"{WORKER_URL}/check_ip", timeout=15)
+            if response.status_code != 200:
+                return False, f"Cannot fetch license from Worker!", None
+            
+            data = response.json()
+            if data.get('allowed') and data.get('ip') == current_ip:
+                return True, "License valid!", {
+                    'vps_ip': current_ip,
+                    'expiry': 'No Expiry',
+                    'admin_username': custom_creds.get('admin_username'),
+                    'admin_password': custom_creds.get('admin_password'),
+                    'license_key': custom_creds.get('license_key', 'EVT-LICENSE'),
+                    'limits': 999,
+                    'active': True,
+                    'telegram_id': None
+                }
+            else:
+                return False, f"IP {current_ip} not authorized!", None
+        except Exception as e:
+            return False, f"License check error: {str(e)}", None
+    
+    # First run - ask user for custom credentials
+    print("\n" + "="*60)
+    print("🔐 FIRST TIME SETUP - PANEL LOGIN CREDENTIALS")
+    print("="*60)
+    
+    admin_username = input(" Panel Login Username (default: admin): ").strip()
+    if not admin_username:
+        admin_username = "admin"
+    
+    admin_password = input(" Panel Login Password (default: admin123): ").strip()
+    if not admin_password:
+        admin_password = "admin123"
+    
+    license_key = input(" Panel License Key (default: EVT-LICENSE): ").strip()
+    if not license_key:
+        license_key = "EVT-LICENSE"
+    
+    # Save credentials
+    creds = {
+        'admin_username': admin_username,
+        'admin_password': admin_password,
+        'license_key': license_key,
+        'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
     try:
-        # Call Worker to check IP (ZIVPN style)
+        with open(creds_file, "w") as f:
+            json.dump(creds, f, indent=4)
+        os.chmod(creds_file, 0o600)
+        print(f"\n[✅] Panel credentials saved!")
+    except:
+        pass
+    
+    try:
         response = requests.get(f"{WORKER_URL}/check_ip", timeout=15)
         if response.status_code != 200:
             return False, f"Cannot fetch license from Worker!", None
@@ -287,9 +354,9 @@ def check_license_from_github(target_username=None, target_license=None, target_
             return True, "License valid!", {
                 'vps_ip': current_ip,
                 'expiry': 'No Expiry',
-                'admin_username': 'admin',
-                'admin_password': 'admin123',
-                'license_key': 'EVT-LICENSE',
+                'admin_username': admin_username,
+                'admin_password': admin_password,
+                'license_key': license_key,
                 'limits': 999,
                 'active': True,
                 'telegram_id': None
