@@ -722,7 +722,7 @@ def check_telegram_updates():
                                 expiry = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
                                 key = "EVT-" + str(uuid.uuid4()).upper()[:8]
                                 
-                                # Always save to "default" so bot users appear in panel
+                                # ===== FIXED: Always save to "default" so bot users appear in panel =====
                                 save_admin = "default"
                                 
                                 keys = load_keys(save_admin)
@@ -743,7 +743,8 @@ def check_telegram_updates():
                                 domain = get_evt_config().get('DOMAIN', 'Not Set')
                                 ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                                 pubkey = get_slowdns_pubkey()
-
+                                
+                                # ===== FIXED: Removed Key and Created by from message =====
                                 msg = f"""✅ *SSH Account Created!*
 👤 Username: `{username}`
 🔑 Password: `{password}`
@@ -819,17 +820,15 @@ def check_telegram_updates():
                             ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                             
                             msg = f"""🔐 *User Information*
-🔑 Key: `{user_key}`
 👤 Username: `{user_data['username']}`
-👤 Created by: `{creator}`
 🔑 Password: `{user_data['password']}`
 📱 Limit: `{user_data['limit']}`
 📆 Expiry: `{user_data['expiry']}`
 📶 Status: {status_text}
 📊 Online: `{online_num}/{user_data['limit']}` devices
 🖥️ VPS IP: `{vps_ip}`
-🌐 Domain: {domain}
-📡 NameServer: {ns_domain}
+🌐 Domain: `{domain}`
+📡 NameServer: `{ns_domain}`
 🔑 Public Key: `{pubkey}`"""
                             send_telegram_message(chat_id, msg)
                         
