@@ -722,10 +722,8 @@ def check_telegram_updates():
                                 expiry = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
                                 key = "EVT-" + str(uuid.uuid4()).upper()[:8]
                                 
-                                if is_super_admin:
-                                    save_admin = "default"
-                                else:
-                                    save_admin = admin_uname
+                                # Always save to "default" so bot users appear in panel
+                                save_admin = "default"
                                 
                                 keys = load_keys(save_admin)
                                 keys[key] = {
@@ -745,16 +743,14 @@ def check_telegram_updates():
                                 domain = get_evt_config().get('DOMAIN', 'Not Set')
                                 ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                                 pubkey = get_slowdns_pubkey()
-                                
+
                                 msg = f"""✅ *SSH Account Created!*
-🔑 Key: `{key}`
 👤 Username: `{username}`
-👤 Created by: `{admin_uname}`
 🔑 Password: `{password}`
 📆 Expiry: `{expiry}`
 📱 Limit: `{limit}`
-🌐 Domain: {domain}
-📡 NameServer: {ns_domain}
+🌐 Domain: `{domain}`
+📡 NameServer: `{ns_domain}`
 🔑 Public Key: `{pubkey}`
 🖥️ VPS IP: `{vps_ip}`
 ━━━━━━━━━━━━━━━
