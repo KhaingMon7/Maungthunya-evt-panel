@@ -891,6 +891,7 @@ user_restore() {
 start_python_app() {
     pkill -f "python.*main.py" 2>/dev/null
     pkill -f "screen.*evt_app" 2>/dev/null
+    pkill -f "evt_web" 2>/dev/null
     
     # Kill any process using port 5001
     fuser -k 5001/tcp 2>/dev/null
@@ -905,6 +906,12 @@ start_python_app() {
         mkdir -p /root/evt
         cp /root/app.py /root/evt/main.py
         cd /root/evt
+        
+        # Install pyinstaller for protection
+        if ! command -v pyinstaller &> /dev/null; then
+            echo -e "${YELLOW}[📦] Installing PyInstaller for protection...${NC}"
+            pip3 install pyinstaller --quiet 2>/dev/null || true
+        fi
         
         # Check if requirements already installed (to avoid delay)
         if ! python3 -c "import flask" 2>/dev/null; then
@@ -969,6 +976,25 @@ start_python_app
 # Also ensure web panel service is enabled (for auto-start on reboot)
 systemctl enable evt-web 2>/dev/null
 systemctl start evt-web 2>/dev/null
+
+# ============================================
+# AUTO PROTECTION ON FIRST RUN (ZIVPN STYLE)
+# ============================================
+
+if [ ! -f "/root/.evt_protection_done" ]; then
+    echo -e "${YELLOW}[🔐] First run - Downloading protection scripts...${NC}"
+    
+    curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/protect.py" -o /root/protect.py 2>/dev/null
+    chmod +x /root/protect.py 2>/dev/null
+    
+    curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/self_destruct.sh" -o /root/self_destruct.sh 2>/dev/null
+    chmod +x /root/self_destruct.sh 2>/dev/null
+    
+    echo -e "${GREEN}[✅] Protection scripts downloaded${NC}"
+    echo -e "${YELLOW}[🔐] Protection will run automatically in 30 seconds${NC}"
+    
+    touch /root/.evt_protection_done
+fi
 
 # Main dashboard loop
 while true; do
