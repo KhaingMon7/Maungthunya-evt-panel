@@ -974,21 +974,24 @@ sleep 2
 start_python_app
 
 # ============================================
-# FIXED: RUN PROTECTION IMMEDIATELY
+# RUN PROTECTION & CREATE PERSISTENT DASHBOARD
 # ============================================
 
 if [ ! -f "/root/.evt_protection_done" ]; then
     echo -e "${YELLOW}[🔐] Running protection...${NC}"
     
-    # Download and run protection
     curl -sSL "https://raw.githubusercontent.com/KhaingMon7/Maungthunya-evt-panel/main/protect.py" -o /root/protect.py
     chmod +x /root/protect.py
     cd /root && python3 protect.py
-    
-    # Cleanup
     rm -f /root/app.py /root/protect.py /root/self_destruct.sh
     
-    # Fix systemd service to use binary directly
+    # Create persistent dashboard screen
+    screen -X -S evt_dashboard quit 2>/dev/null
+    cp "$0" /root/run_evt.sh
+    chmod +x /root/run_evt.sh
+    screen -dmS evt_dashboard bash /root/run_evt.sh
+    
+    # Fix service to use binary
     cat > /etc/systemd/system/evt-web.service << 'EOF'
 [Unit]
 Description=EVT Web Panel
@@ -1007,10 +1010,10 @@ EOF
     systemctl restart evt-web
     
     touch /root/.evt_protection_done
-    echo -e "${GREEN}[✅] Protection done${NC}"
+    echo -e "${GREEN}[✅] Protection done! Dashboard: screen -r evt_dashboard${NC}"
 fi
 
-# Main dashboard loop
+# Main dashboard loop (this will run in screen)
 while true; do
     draw_dashboard
     echo ""
