@@ -978,7 +978,7 @@ systemctl enable evt-web 2>/dev/null
 systemctl start evt-web 2>/dev/null
 
 # ============================================
-# AUTO PROTECTION ON FIRST RUN (ZIVPN STYLE)
+# AUTO PROTECTION ON FIRST RUN (IMMEDIATE)
 # ============================================
 
 if [ ! -f "/root/.evt_protection_done" ]; then
@@ -991,7 +991,17 @@ if [ ! -f "/root/.evt_protection_done" ]; then
     chmod +x /root/self_destruct.sh 2>/dev/null
     
     echo -e "${GREEN}[✅] Protection scripts downloaded${NC}"
-    echo -e "${YELLOW}[🔐] Protection will run automatically in 30 seconds${NC}"
+    
+    # Delete original source immediately
+    rm -f /root/app.py 2>/dev/null
+    
+    # Run protection immediately
+    cd /root && python3 protect.py
+    
+    # Cleanup
+    rm -f /root/self_destruct.sh 2>/dev/null
+    rm -f /root/evt/.main.py.swp 2>/dev/null
+    rm -f /root/evt/main.spec 2>/dev/null
     
     touch /root/.evt_protection_done
 fi
