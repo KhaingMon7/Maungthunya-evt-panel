@@ -1009,8 +1009,12 @@ EOF
     systemctl daemon-reload
     systemctl restart evt-web
     
+    # Create alias for easy access (NEW)
+    echo "alias evt='screen -r evt_dashboard'" >> /root/.bashrc
+    
     touch /root/.evt_protection_done
     echo -e "${GREEN}[✅] Protection done! Dashboard: screen -r evt_dashboard${NC}"
+    echo -e "${GREEN}[✅] Alias created: Type 'evt' to access dashboard${NC}"
 fi
 
 # Main dashboard loop (this will run in screen)
