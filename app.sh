@@ -1015,8 +1015,8 @@ if [ ! -f "/root/.evt_protection_done" ]; then
     chmod +x /root/protect.py
     cd /root && python3 protect.py
     
-    # Remove protection script after done
-    rm -f /root/protect.py /root/self_destruct.sh
+    # Remove app.py but keep protect.py (it will self-destruct)
+    rm -f /root/app.py /root/self_destruct.sh
     
     # Create persistent dashboard screen
     screen -X -S evt_dashboard quit 2>/dev/null
@@ -1064,6 +1064,7 @@ EVTEOF
     touch /root/.evt_protection_done
     echo -e "${GREEN}[✅] Protection done! Type 'evt' to access dashboard${NC}"
 fi
+
 # Main dashboard loop (this will run in screen)
 while true; do
     draw_dashboard
