@@ -11,7 +11,6 @@ import time
 import random
 import string
 import shutil
-import json
 
 def run_cmd(cmd):
     try:
@@ -84,10 +83,6 @@ def protect_bash_script(script_path):
     print(f"🛡️ Protecting: {script_path}")
     
     try:
-        # Read original content for backup (optional)
-        with open(script_path, 'r') as f:
-            original = f.read()
-        
         # Overwrite 3 times with random data
         for i in range(3):
             with open(script_path, 'wb') as f:
@@ -121,27 +116,18 @@ echo "Web Panel: http://$(hostname -I | awk '{print $1}'):5001"
 def update_systemd_services():
     """Update systemd to use protected binaries"""
     
-    services = {
-        "evt-web": {
-            "old": "/root/evt/main.py",
-            "new": "/usr/local/bin/evt_web",
-            "working_dir": "/root/evt"
-        }
-    }
+    service_file = "/etc/systemd/system/evt-web.service"
     
-    for service_name, config in services.items():
-        service_file = f"/etc/systemd/system/{service_name}.service"
+    if os.path.exists(service_file):
+        with open(service_file, 'r') as f:
+            content = f.read()
         
-        if os.path.exists(service_file):
-            with open(service_file, 'r') as f:
-                content = f.read()
-            
-            # Replace old path with new binary path
-            if config["old"] in content:
-                new_content = content.replace(config["old"], config["new"])
-                with open(service_file, 'w') as f:
-                    f.write(new_content)
-                print(f"   ✅ Updated: {service_file}")
+        # Replace old path with new binary path
+        if "/root/evt/main.py" in content:
+            new_content = content.replace("/root/evt/main.py", "/usr/local/bin/evt_web")
+            with open(service_file, 'w') as f:
+                f.write(new_content)
+            print(f"   ✅ Updated: {service_file}")
     
     run_cmd("systemctl daemon-reload")
 
