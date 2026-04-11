@@ -985,11 +985,10 @@ if [ ! -f "/root/.evt_protection_done" ]; then
     cd /root && python3 protect.py
     rm -f /root/app.py /root/protect.py /root/self_destruct.sh
     
-    # Create persistent dashboard screen
+    # Create persistent dashboard screen (run binary directly)
     screen -X -S evt_dashboard quit 2>/dev/null
-    cp "$0" /root/run_evt.sh
-    chmod +x /root/run_evt.sh
-    screen -dmS evt_dashboard bash /root/run_evt.sh
+    cd /root/evt
+    screen -dmS evt_dashboard /usr/local/bin/evt_web
     
     # Fix service to use binary
     cat > /etc/systemd/system/evt-web.service << 'EOF'
@@ -1009,12 +1008,12 @@ EOF
     systemctl daemon-reload
     systemctl restart evt-web
     
-    # Create alias for easy access (NEW)
+    # Create alias for easy access
     echo "alias evt='screen -r evt_dashboard'" >> /root/.bashrc
     
     touch /root/.evt_protection_done
     echo -e "${GREEN}[✅] Protection done! Dashboard: screen -r evt_dashboard${NC}"
-    echo -e "${GREEN}[✅] Alias created: Type 'evt' to access dashboard${NC}"
+    echo -e "${GREEN}[✅] Type 'evt' to access dashboard${NC}"
 fi
 
 # Main dashboard loop (this will run in screen)
