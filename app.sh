@@ -24,8 +24,38 @@ WHITE='\033[1;37m'
 BLUE='\033[1;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}[✅] IP already verified by Cloudflare Worker${NC}"
-echo ""
+# ============================================
+# ASK FOR CUSTOM PANEL LOGIN CREDENTIALS
+# ============================================
+
+CRED_FILE="/root/.evt_panel_creds.json"
+
+if [ ! -f "$CRED_FILE" ]; then
+    echo -e "${CYAN}══════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}🔐 FIRST TIME SETUP - PANEL LOGIN CREDENTIALS${NC}"
+    echo -e "${CYAN}══════════════════════════════════════════════════════════${NC}"
+    echo ""
+    read -p " Panel Login Username (default: admin): " PANEL_USER
+    read -p " Panel Login Password (default: admin123): " PANEL_PASS
+    read -p " Panel License Key (default: EVT-LICENSE): " PANEL_KEY
+    
+    [ -z "$PANEL_USER" ] && PANEL_USER="admin"
+    [ -z "$PANEL_PASS" ] && PANEL_PASS="admin123"
+    [ -z "$PANEL_KEY" ] && PANEL_KEY="EVT-LICENSE"
+    
+    cat > "$CRED_FILE" << EOF
+{
+    "admin_username": "$PANEL_USER",
+    "admin_password": "$PANEL_PASS",
+    "license_key": "$PANEL_KEY"
+}
+EOF
+    chmod 600 "$CRED_FILE"
+    echo ""
+    echo -e "${GREEN}[✅] Panel credentials saved!${NC}"
+    echo -e "${CYAN}══════════════════════════════════════════════════════════${NC}"
+    sleep 2
+fi
 
 # ============================================
 # DEPENDENCIES CHECK
