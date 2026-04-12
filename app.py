@@ -1439,48 +1439,60 @@ DASHBOARD_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function updateLiveStatus() {
-            fetch('/api/online_status')
-                .then(response => response.json())
-                .then(data => {
-                    const onlineCountElement = document.getElementById('online-count');
-                    if (onlineCountElement) onlineCountElement.textContent = data.total_online;
-                    const totalUsersElement = document.getElementById('total-users');
-                    if (totalUsersElement && data.total_users) totalUsersElement.textContent = data.total_users;
-                    if (data.session_valid === false) { window.location.href = '/logout?reason=limit_exceeded'; return; }
-                    const activeLoginsEl = document.getElementById('panel-active-sessions');
-                    if (activeLoginsEl && data.active_sessions !== undefined && data.session_limit !== undefined) {
-                        const act = data.active_sessions; const lim = data.session_limit;
-                        activeLoginsEl.textContent = act + '/' + lim;
-                        activeLoginsEl.classList.remove('text-success', 'text-warning', 'text-danger');
-                        if (act >= lim) activeLoginsEl.classList.add('text-danger');
-                        else if (act > 0) activeLoginsEl.classList.add('text-warning');
-                        else activeLoginsEl.classList.add('text-success');
+            fetch('/api/online_status', { 
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.log('API response not OK, will retry');
+                    return { status: {} };
+                }
+                return response.json();
+            })
+            .then(data => {
+                const onlineCountElement = document.getElementById('online-count');
+                if (onlineCountElement && data.total_online !== undefined) onlineCountElement.textContent = data.total_online;
+                const totalUsersElement = document.getElementById('total-users');
+                if (totalUsersElement && data.total_users !== undefined) totalUsersElement.textContent = data.total_users;
+                if (data.session_valid === false) { window.location.href = '/logout?reason=limit_exceeded'; return; }
+                const activeLoginsEl = document.getElementById('panel-active-sessions');
+                if (activeLoginsEl && data.active_sessions !== undefined && data.session_limit !== undefined) {
+                    const act = data.active_sessions; const lim = data.session_limit;
+                    activeLoginsEl.textContent = act + '/' + lim;
+                    activeLoginsEl.classList.remove('text-success', 'text-warning', 'text-danger');
+                    if (act >= lim) activeLoginsEl.classList.add('text-danger');
+                    else if (act > 0) activeLoginsEl.classList.add('text-warning');
+                    else activeLoginsEl.classList.add('text-success');
+                }
+                for (const [key, status] of Object.entries(data.status || {})) {
+                    const deviceSpan = document.querySelector(`.device-status-${key}`);
+                    const statusSpan = document.querySelector(`.status-badge-${key}`);
+                    const row = document.getElementById(`row-${key}`);
+                    if (deviceSpan && status) {
+                        const deviceText = status.device_status;
+                        deviceSpan.textContent = deviceText;
+                        const limit = row ? row.getAttribute('data-limit') : 1;
+                        const onlineNum = parseInt(deviceText.split('/')[0]);
+                        deviceSpan.classList.remove('device-online', 'device-offline', 'device-limit');
+                        if (onlineNum > limit) deviceSpan.classList.add('device-limit');
+                        else if (onlineNum > 0) deviceSpan.classList.add('device-online');
+                        else deviceSpan.classList.add('device-offline');
                     }
-                    for (const [key, status] of Object.entries(data.status)) {
-                        const deviceSpan = document.querySelector(`.device-status-${key}`);
-                        const statusSpan = document.querySelector(`.status-badge-${key}`);
-                        const row = document.getElementById(`row-${key}`);
-                        if (deviceSpan && status) {
-                            const deviceText = status.device_status;
-                            deviceSpan.textContent = deviceText;
-                            const limit = row ? row.getAttribute('data-limit') : 1;
-                            const onlineNum = parseInt(deviceText.split('/')[0]);
-                            deviceSpan.classList.remove('device-online', 'device-offline', 'device-limit');
-                            if (onlineNum > limit) deviceSpan.classList.add('device-limit');
-                            else if (onlineNum > 0) deviceSpan.classList.add('device-online');
-                            else deviceSpan.classList.add('device-offline');
-                        }
-                        if (statusSpan && status) {
-                            const isOnline = status.status === 'Online';
-                            statusSpan.textContent = isOnline ? 'Online' : 'Offline';
-                            statusSpan.classList.remove('status-online', 'status-offline', 'status-expired');
-                            if (isOnline) statusSpan.classList.add('status-online');
-                            else { const row = document.getElementById(`row-${key}`); const expiry = row ? row.getAttribute('data-expiry') : ''; const today = new Date().toISOString().split('T')[0]; if (expiry && expiry < today) { statusSpan.classList.add('status-expired'); statusSpan.textContent = 'Expired'; } else statusSpan.classList.add('status-offline'); }
-                        }
+                    if (statusSpan && status) {
+                        const isOnline = status.status === 'Online';
+                        statusSpan.textContent = isOnline ? 'Online' : 'Offline';
+                        statusSpan.classList.remove('status-online', 'status-offline', 'status-expired');
+                        if (isOnline) statusSpan.classList.add('status-online');
+                        else { const row = document.getElementById(`row-${key}`); const expiry = row ? row.getAttribute('data-expiry') : ''; const today = new Date().toISOString().split('T')[0]; if (expiry && expiry < today) { statusSpan.classList.add('status-expired'); statusSpan.textContent = 'Expired'; } else statusSpan.classList.add('status-offline'); }
                     }
-                }).catch(error => console.error('Error fetching status:', error));
+                }
+            }).catch(error => console.error('Error fetching status:', error));
         }
-        setInterval(updateLiveStatus, 3000);
+        setInterval(updateLiveStatus, 2000);  // Changed from 3000 to 2000 (2 seconds)
         document.addEventListener('DOMContentLoaded', function() { updateLiveStatus(); const flashMessages = document.querySelectorAll('.flash-message'); if (flashMessages.length > 0) { setTimeout(function() { flashMessages.forEach(function(msg) { msg.style.opacity = '0'; setTimeout(function() { if (msg.parentNode) msg.remove(); }, 500); }); }, 2000); } });
         function updateRegionTime() { const regionSpan = document.getElementById('regionText'); const regionTimeSpan = document.getElementById('regionCurrentTime'); if (regionSpan && regionTimeSpan) { const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; const now = new Date(); const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }; const formattedTime = new Intl.DateTimeFormat('en-GB', options).format(now); regionSpan.innerHTML = timezone; regionTimeSpan.innerHTML = formattedTime; } }
         updateRegionTime(); setInterval(updateRegionTime, 1000);
@@ -1488,7 +1500,7 @@ DASHBOARD_HTML = """
         function togglePass(id, p) { let span = document.getElementById('pass-' + id); let icon = document.getElementById('icon-' + id); if(span.innerText === '••••••••') { span.innerText = p; icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); } else { span.innerText = '••••••••'; icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); } }
         function copyToClipboard(elementId) { const element = document.getElementById(elementId); const text = element.innerText; if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => { const icon = event.target; const originalClass = icon.className; icon.className = 'fas fa-check copy-icon'; icon.style.color = '#28a745'; setTimeout(() => { icon.className = originalClass; icon.style.color = ''; }, 1500); }).catch(err => { fallbackCopy(text); }); } else { fallbackCopy(text); } }
         function fallbackCopy(text) { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); try { document.execCommand('copy'); const icon = event.target; const originalClass = icon.className; icon.className = 'fas fa-check copy-icon'; icon.style.color = '#28a745'; setTimeout(() => { icon.className = originalClass; icon.style.color = ''; }, 1500); } catch (err) {} document.body.removeChild(textarea); }
-        setInterval(function() { fetch('/api/online_status').catch(() => {}); }, 30000);
+        setInterval(function() { fetch('/api/online_status', { credentials: 'same-origin' }).catch(() => {}); }, 30000);
     </script>
 </body>
 </html>
