@@ -746,19 +746,20 @@ def check_telegram_updates():
                                 ns_domain = get_evt_config().get('NS_DOMAIN', 'Not Set')
                                 pubkey = get_slowdns_pubkey()
                                 
-                                msg = f"""✅ *SSH Account Created!*
-🔑 Key: `{key}`
+                                msg = f"""✅ *📡Premium Account Created!*
+━━━━━━━━━━━━━━━━━━━━━━━━━
+📶 Server IP: `{vps_ip}`
 👤 Username: `{username}`
-👤 Created by: `{admin_uname}`
 🔑 Password: `{password}`
 📆 Expiry: `{expiry}`
 📱 Limit: `{limit}`
-🌐 Domain: {domain}
-📡 NameServer: {ns_domain}
+🌐 Domain: `{domain}`
+📡 NameServer: `{ns_domain}`
 🔑 Public Key: `{pubkey}`
-🖥️ VPS IP: `{vps_ip}`
-━━━━━━━━━━━━━━━
-📡 *EVT SSH Manager*"""
+🔐 License: `{key}`
+👤 Created by: `{admin_uname}`
+━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
                                 send_telegram_message(chat_id, msg)
                             except Exception as e:
                                 send_telegram_message(chat_id, f"❌ Error: {str(e)}")
