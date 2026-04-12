@@ -461,11 +461,23 @@ def get_user_online_status(username):
 
 def get_all_users_online_status():
     try:
+        # Get all logged in users from 'who' command (most accurate)
         who_output = subprocess.getoutput("who | awk '{print $1}'").strip()
-        online_users_list = who_output.split('\n') if who_output else []
+        online_users = set(who_output.split('\n')) if who_output else set()
+        
+        # Get users with active sshd processes
+        ssh_output = subprocess.getoutput("ps aux | grep -E 'sshd.*@' | grep -v grep | awk '{print $1}'").strip()
+        if ssh_output:
+            for u in ssh_output.split('\n'):
+                online_users.add(u)
+        
+        # Get users with dropbear processes
         dropbear_output = subprocess.getoutput("ps aux | grep dropbear | grep -v grep | awk '{print $1}'").strip()
-        dropbear_users = dropbear_output.split('\n') if dropbear_output else []
-        return set(online_users_list + dropbear_users)
+        if dropbear_output:
+            for u in dropbear_output.split('\n'):
+                online_users.add(u)
+        
+        return online_users
     except:
         return set()
 
