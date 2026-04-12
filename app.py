@@ -1574,9 +1574,12 @@ def admin_dashboard():
         'license_key': license_data.get('license_key', 'Unknown'),
     }
     
-    # SHOW ALL USERS - NO FILTERING (removed telegram_id filter)
     all_keys = load_keys(None)
-    filtered_keys = all_keys
+    filtered_keys = {}
+    for key, val in all_keys.items():
+        created_by = val.get('created_by_tgid') or val.get('telegram_id')
+        if is_super_admin or str(created_by) == str(current_telegram_id):
+            filtered_keys[key] = val
     
     online_users = 0
     today = date.today().strftime("%Y-%m-%d")
